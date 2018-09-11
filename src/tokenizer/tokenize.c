@@ -5,6 +5,21 @@
 #include <sqlite3.h>
 
 
+/// STDLIB WRAPPER
+
+void* sia_malloc(size_t memsize) {
+  void* allocated = malloc(memsize) ;
+  
+  if (allocated == NULL) {
+    return NULL ;
+  }
+
+   return allocated ;
+}
+
+/// STDLIB WRAPPER
+
+
 typedef enum token_type {
   token_name, 
   token_lbrace, 
@@ -59,19 +74,6 @@ token* token_insert(token* a_token, token* to_insert) {
     to_insert->next = a_token->next ;
     a_token->next = to_insert ;
     return to_insert ;
-  }
-
-  return NULL;
-}
-
-
-token* tokenize(FILE* file_to_tokenize) {
-  int c ;
-  
-  if (file_to_tokenize != NULL) {
-    while ((c = fgetc(file_to_tokenize)) != EOF) {
-      printf("%c", c) ;
-    }
   }
 
   return NULL;
@@ -136,6 +138,75 @@ bool is_rbrace_token(char* buffer) {
 
 bool is_comma_token(char* buffer) {
   return strcmp(buffer, ",") == 0 ;
+}
+
+
+char* clear_buffer(char* buffer) {
+  memset(buffer, '\0', strlen(buffer));
+}
+
+char* str_create(const char* src) {
+  return strcpy(malloc(strlen(src)), src) ;
+}
+
+
+token* tokenize(FILE* file_to_tokenize) {
+  int c ;
+  char buffer[512] = {'\0'} ; 
+  token* current_token = NULL ;
+  token* first_token = NULL ;
+
+  if (file_to_tokenize != NULL) {
+    unsigned index = 0 ;
+
+    while (index < sizeof(buffer) && (c = fgetc(file_to_tokenize)) != EOF) {
+      buffer[index] = (char) c ;
+      ++index ;
+
+      if (is_comma_token(buffer)) {
+        current_token = token_push_back(current_token, token_create(str_create(","), token_comma)) ;
+        
+        if (first_token == NULL) {
+          first_token = current_token ;
+        }
+
+        clear_buffer(buffer) ;
+      } else if (is_lbrace_token(buffer)) {
+        current_token = token_push_back(current_token, token_create(str_create("("), token_lbrace)) ;
+        
+        if (first_token == NULL) {
+          first_token = current_token ;
+        }
+
+        clear_buffer(buffer) ;
+      } else if (is_rbrace_token(buffer)) {
+        current_token = token_push_back(current_token, token_create(str_create(")"), token_rbrace)) ;
+        
+        if (first_token == NULL) {
+          first_token = current_token ;
+        }
+
+        clear_buffer(buffer) ;
+      } else if (is_name_token(buffer)) {
+        while (index < sizeof(buffer) && (c = fgetc(file_to_tokenize)) != EOF && is_name_token(buffer)) {
+          buffer[index] = (char) c ;
+          ++index ;
+        }
+
+        buffer[strlen(buffer)] = '\0' ;
+
+        current_token = token_push_back(current_token, token_create(str_create(buffer), token_name)) ;
+
+        if (first_token == NULL) {
+          first_token = current_token ;
+        }
+
+        clear_buffer(buffer) ;
+      }
+    }
+  }
+
+  return first_token;
 }
 
 

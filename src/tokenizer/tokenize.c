@@ -145,13 +145,31 @@ char* clear_buffer(char* buffer) {
   memset(buffer, '\0', strlen(buffer));
 }
 
+
 char* str_create(const char* src) {
   return strcpy(malloc(strlen(src)), src) ;
 }
 
 
+long fsize(FILE* file) {
+  fseek(file, 0L, SEEK_END);
+  return ftell(fp);
+}
+
+
+char* read_all_file(FILE* file_to_read) {
+  const long filesize = fsize(file_to_read) ;
+  char* file_content = malloc(filesize) ; 
+  fread(file_content, sizeof(char), filesize, file_to_read) ;
+  return file_content ;
+}
+
+
 token* tokenize(FILE* file_to_tokenize) {
-  int c ;
+  char* file_content = read_all_file(file_to_tokenize) ; 
+
+
+  char c ;
   char buffer[512] = {'\0'} ; 
   token* current_token = NULL ;
   token* first_token = NULL ;
@@ -206,7 +224,10 @@ token* tokenize(FILE* file_to_tokenize) {
     }
   }
 
-  return first_token;
+
+
+  free(file_content) ;
+  return first_token ;
 }
 
 

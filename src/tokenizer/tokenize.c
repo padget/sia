@@ -4,21 +4,13 @@
 #include <stdbool.h>
 #include <sqlite3.h>
 
+#include <sia/string.h>
 
-/// STDLIB WRAPPER
 
-void* sia_malloc(size_t memsize) {
-  void* allocated = malloc(memsize) ;
-  
-  if (allocated == NULL) {
-    return NULL ;
-  }
 
-   return allocated ;
-}
 
-/// STDLIB WRAPPER
 
+/*
 
 typedef enum token_type {
   token_name, 
@@ -29,54 +21,24 @@ typedef enum token_type {
 
 
 typedef struct token {
-  char* value ; 
+  string value ; 
   enum token_type type ; 
-  struct token* next ;
 } token ;
 
 typedef struct compilation_context {
-  char* filename ;
+  string filename ;
   int line ; 
   int column ; 
 } compilation_context ;
 
 
-token* token_create(char* value, const token_type type) {
+
+token* token_create(string value, const token_type type) {
   token* tok = malloc(sizeof(token)) ;
   tok->type = type ;
   tok->value = value ;
 
   return tok ; 
-}
-
-
-token* token_back(token* a_token) {
-  token* back ;
-  
-  while (a_token->next != NULL) {
-    back = a_token->next ;
-  }
-
-  return back ;
-}
-
-
-token* token_push_back(token* tokens, token* new_token) {
-  token* back = token_back(tokens) ;
-  back->next = new_token ;
-
-  return new_token ;
-}
-
-
-token* token_insert(token* a_token, token* to_insert) {
-  if (a_token != NULL && to_insert != NULL) {
-    to_insert->next = a_token->next ;
-    a_token->next = to_insert ;
-    return to_insert ;
-  }
-
-  return NULL;
 }
 
 
@@ -153,7 +115,7 @@ char* str_create(const char* src) {
 
 long fsize(FILE* file) {
   fseek(file, 0L, SEEK_END);
-  return ftell(fp);
+  return ftell(file);
 }
 
 
@@ -174,7 +136,7 @@ token* tokenize(FILE* file_to_tokenize) {
   token* current_token = NULL ;
   token* first_token = NULL ;
 
-  if (file_to_tokenize != NULL) {
+  /*if (file_to_tokenize != NULL) {
     unsigned index = 0 ;
 
     while (index < sizeof(buffer) && (c = fgetc(file_to_tokenize)) != EOF) {
@@ -222,7 +184,7 @@ token* tokenize(FILE* file_to_tokenize) {
         clear_buffer(buffer) ;
       }
     }
-  }
+  }*
 
 
 
@@ -332,12 +294,14 @@ int insert_one_token(sqlite3* db,  token* a_token, const compilation_context* cm
   free(a_token_db) ;
 }
 
+*/
 
 
 
 /// MAIN SCRIPT
 
 int main(int argc, const char** argv) {
+  /*
   if (argc != 2) {
     perror("arguments list invalid (tokenize <filename>.sia)\n" ) ;
     return EXIT_FAILURE ;
@@ -384,7 +348,31 @@ int main(int argc, const char** argv) {
   FILE* file_to_tokenize = fopen(filename, "r") ;
   tokenize(file_to_tokenize) ;
 
-  sqlite3_close(db) ;
+  sqlite3_close(db) ;*/
+
+  string my_name = string_cs_create("qdl kjaqlhd") ;
+  string str = string_it_create(begin(my_name), end(my_name)) ;
+
+  printf("%d\n", string_length(str)) ;
+  printf("size it : %d\n", string_it_length(begin(str), end(str)));
+  printf("%s (%d)\n", str.data, string_length(str)) ;
+
+  string a = string_cs_create("a") ;
+  string empty = string_cs_create("") ;
+  
+  printf("compare : %d\n", string_compare(empty, a)) ;
+  printf("std compare : %d\n", strcmp("", "a")) ;
+
+  printf("compare : %d\n", string_compare(a, empty)) ;
+  printf("std compare : %d\n", strcmp("a", "")) ;
+
+  printf("compare : %d\n", string_compare(a, a)) ;
+  printf("std compare : %d\n", strcmp("a", "a")) ;
+
+  string_free(&my_name) ;
+  string_free(&str) ;
+  string_free(&a) ;
+  string_free(&empty) ;
 
   return EXIT_SUCCESS ;
 }

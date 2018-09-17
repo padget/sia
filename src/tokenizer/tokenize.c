@@ -1,13 +1,37 @@
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sqlite3.h>
+#include <locale.h>
 
 #include <sia/string.h>
 
+size_t fsize(FILE* file) {
+  fseek(file, 0L, SEEK_END) ;
+  const size_t filesize = ftell(file) ;
+  fseek(file, 0L, SEEK_SET) ;
+  
+  return filesize ;
+}
+
+/// https://stackoverflow.com/questions/21737906/how-to-read-write-utf8-text-files-in-c
+/// TODO faire une lib wtring copier-coller string avec wchar_t à la place
+
+string read_all_file(FILE* file) {
+  size_t filesize = fsize(file) ;
+  char* data = malloc(sizeof(char) * filesize) ;
+  char* first_data = data ;
+  char c ;
 
 
+  while ((c = fgetc(file)) != EOF) {
+    printf("%c\n", c) ;
+    *data = c ;
+    ++data ;
+  }
+
+  return string_cs_create(first_data) ;
+}
 
 
 /*
@@ -350,29 +374,16 @@ int main(int argc, const char** argv) {
 
   sqlite3_close(db) ;*/
 
-  string my_name = string_cs_create("qdl kjaqlhd") ;
-  string str = string_it_create(begin(my_name), end(my_name)) ;
 
-  printf("%d\n", string_length(str)) ;
-  printf("size it : %d\n", string_it_length(begin(str), end(str)));
-  printf("%s (%d)\n", str.data, string_length(str)) ;
+  FILE* file = fopen("lol.sia", "r") ;
+  string file_content = read_all_file(file) ;
 
-  string a = string_cs_create("a") ;
-  string empty = string_cs_create("") ;
-  
-  printf("compare : %d\n", string_compare(empty, a)) ;
-  printf("std compare : %d\n", strcmp("", "a")) ;
+  fclose(file) ;
 
-  printf("compare : %d\n", string_compare(a, empty)) ;
-  printf("std compare : %d\n", strcmp("a", "")) ;
+  printf("%s length : %d", file_content.data, file_content.size) ;
 
-  printf("compare : %d\n", string_compare(a, a)) ;
-  printf("std compare : %d\n", strcmp("a", "a")) ;
+  string_free(&file_content) ;
 
-  string_free(&my_name) ;
-  string_free(&str) ;
-  string_free(&a) ;
-  string_free(&empty) ;
 
   return EXIT_SUCCESS ;
 }

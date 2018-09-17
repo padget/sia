@@ -4,6 +4,7 @@
 #  include <stdlib.h>
 #  include <stdbool.h>
 
+
 //////////////////
 /// String lib ///
 //////////////////
@@ -18,8 +19,8 @@ typedef char* const string_citerator ;
 typedef const char* cstring_iterator ;
 typedef const char* const cstring_citerator ;
 
-cstring_iterator begin(string str);
-cstring_iterator end(string str) ;
+cstring_iterator string_begin(string str);
+cstring_iterator string_end(string str) ;
 size_t string_it_length(cstring_iterator begin, cstring_iterator end) ;
 size_t string_length(const string str) ;
 string string_it_create(cstring_iterator begin, cstring_iterator end) ;
@@ -34,6 +35,7 @@ string string_it_concat(cstring_iterator begin, cstring_iterator end,
                         cstring_iterator obegin, cstring_iterator oend) ;
 string string_concat(string str1, string str2) ;
 void string_free(string* str) ;
+void string_free_all(size_t num, ...) ;
 bool string_is_empty(string str) ;
 
 #endif

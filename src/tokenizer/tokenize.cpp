@@ -1,37 +1,80 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
 #include <sqlite3.h>
-#include <locale.h>
-
-#include <sia/string.h>
-
-size_t fsize(FILE* file) {
-  fseek(file, 0L, SEEK_END) ;
-  const size_t filesize = ftell(file) ;
-  fseek(file, 0L, SEEK_SET) ;
-  
-  return filesize ;
-}
-
+#include <string>
+#include <string_view>
+#include <fstream>
+#include <tuple>
+#include <iterator>
+#include <iostream>
+#include <variant>
+#include <type_traits>
+#include <utility>
 /// https://stackoverflow.com/questions/21737906/how-to-read-write-utf8-text-files-in-c
 /// TODO faire une lib wtring copier-coller string avec wchar_t à la place
 
-string read_all_file(FILE* file) {
-  size_t filesize = fsize(file) ;
-  char* data = malloc(sizeof(char) * filesize) ;
-  char* first_data = data ;
-  char c ;
 
+template <typename type_t, typename error_t> 
+using result = std::variant<type_t, error_t> ;
 
-  while ((c = fgetc(file)) != EOF) {
-    printf("%c\n", c) ;
-    *data = c ;
-    ++data ;
+template<typename type_t, typename error_t>
+auto match(result<type_t, error_t>& r) {
+  return [&r] (auto && ok_callback, auto && error_callback) {
+    std::visit([&ok_callback, &error_callback] (auto && arg) {
+      using arg_t = std::decay_t<decltype(arg)> ;
+      
+      if constexpr (std::is_same_v<arg_t, type_t>) {
+        return ok_callback(std::forward<decltype(arg)>(arg)) ;
+      }
+
+      else if constexpr (std::is_same_v<arg_t, error_t>) {
+        return error_callback(std::forward<decltype(arg)>(arg)) ;
+      }
+    }, r) ;
+  } ;
+}
+
+result<std::ifstream, std::string> open_file (const std::string& filename) {
+  std::ifstream file = std::ifstream(filename, std::ios::in) ;
+  result<std::ifstream, std::string> r ;
+  
+  if (file.is_open()) {
+    std::cout << "file is opened correctly" << std::endl ; 
+    r = std::move(file) ;
   }
 
-  return string_cs_create(first_data) ;
+  else {
+    std::cout << "file can't be opened" << std::endl ;  
+    r = std::string("une erreur est survenue lors de l'ouverture du fichier") ;
+  }
+
+  return r ;
 }
+
+struct file_content { 
+  std::string content ; 
+} ;
+
+using error_message_t = std::string ;
+using file_iterator_t = std::istreambuf_iterator<char> ;
+
+
+
+auto read_file(const std::string& filename) {
+  result<file_content, error_message_t> r ;
+  auto opened = open_file(filename) ;
+
+  match(opened) (
+    [&r] (std::ifstream& file) { 
+      std::cout << "file opened " << std::endl ; 
+      r = file_content {std::string(file_iterator_t(file), file_iterator_t())} ; 
+    },
+    [&r] (const error_message_t& message) { 
+      std::cout << "file not opened" << std::endl ; 
+      r = std::string("can't read file because : ") + message ; 
+    }) ;
+
+  return r ;
+}
+
 
 
 /*
@@ -374,16 +417,11 @@ int main(int argc, const char** argv) {
 
   sqlite3_close(db) ;*/
 
+  auto r = read_file("lol2.sia") ;
 
-  FILE* file = fopen("lol.sia", "r") ;
-  string file_content = read_all_file(file) ;
-
-  fclose(file) ;
-
-  printf("%s length : %d", file_content.data, file_content.size) ;
-
-  string_free(&file_content) ;
-
+  match(r) 
+    ([] (file_content& file) {std::cout << "OK" << file.content << std::endl ; },
+     [] (const std::string& message) {std::cout << "KO" << message << std::endl ; }) ;
 
   return EXIT_SUCCESS ;
 }

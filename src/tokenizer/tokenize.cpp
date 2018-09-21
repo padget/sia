@@ -8,72 +8,7 @@
 #include <variant>
 #include <type_traits>
 #include <utility>
-/// https://stackoverflow.com/questions/21737906/how-to-read-write-utf8-text-files-in-c
-/// TODO faire une lib wtring copier-coller string avec wchar_t à la place
 
-
-template <typename type_t, typename error_t> 
-using result = std::variant<type_t, error_t> ;
-
-template<typename type_t, typename error_t>
-auto match(result<type_t, error_t>& r) {
-  return [&r] (auto && ok_callback, auto && error_callback) {
-    std::visit([&ok_callback, &error_callback] (auto && arg) {
-      using arg_t = std::decay_t<decltype(arg)> ;
-      
-      if constexpr (std::is_same_v<arg_t, type_t>) {
-        return ok_callback(std::forward<decltype(arg)>(arg)) ;
-      }
-
-      else if constexpr (std::is_same_v<arg_t, error_t>) {
-        return error_callback(std::forward<decltype(arg)>(arg)) ;
-      }
-    }, r) ;
-  } ;
-}
-
-result<std::ifstream, std::string> open_file (const std::string& filename) {
-  std::ifstream file = std::ifstream(filename, std::ios::in) ;
-  result<std::ifstream, std::string> r ;
-  
-  if (file.is_open()) {
-    std::cout << "file is opened correctly" << std::endl ; 
-    r = std::move(file) ;
-  }
-
-  else {
-    std::cout << "file can't be opened" << std::endl ;  
-    r = std::string("une erreur est survenue lors de l'ouverture du fichier") ;
-  }
-
-  return r ;
-}
-
-struct file_content { 
-  std::string content ; 
-} ;
-
-using error_message_t = std::string ;
-using file_iterator_t = std::istreambuf_iterator<char> ;
-
-
-
-auto read_file(const std::string& filename) {
-  result<file_content, error_message_t> r ;
-  auto opened = open_file(filename) ;
-
-  match(opened) (
-    [&r] (std::ifstream& file) { 
-      std::cout << "file opened " << std::endl ; 
-      r = file_content {std::string(file_iterator_t(file), file_iterator_t())} ; 
-    },
-    [&r] (const error_message_t& message) { 
-      std::cout << "file not opened" << std::endl ; 
-      r = std::string("can't read file because : ") + message ; 
-    }) ;
-
-  return r ;
-}
 
 
 
@@ -363,7 +298,116 @@ int insert_one_token(sqlite3* db,  token* a_token, const compilation_context* cm
 
 */
 
+const auto ERROR_ON_FILE_OPENING = "une erreur est survenue lors de l'ouverture du fichier." ;
+const auto CANT_READ_FILE = "can't read file." ;
+const auto CANT_OPEN_DATABASE = "can't open the database." ;
+const auto CANT_CREATE_TOKEN_TABLE = "can't create tokens table." ;
 
+template <typename type_t, typename error_t> 
+using result = std::variant<type_t, error_t> ;
+
+template <size_t index, typename variant_t>
+using from = std::variant_alternative_t<index, variant_t> ;
+
+auto match(auto&& r) {
+  return [&r] (auto && ok_callback, auto && error_callback) {
+    std::visit([&ok_callback, &error_callback] (auto && arg) {
+      using arg_t    = std::decay_t<decltype(arg)> ;
+      using result_t = std::decay_t<decltype(r)> ;
+      using ok_t     = from<0, result_t> ;
+      using error_t  = from<1, result_t> ;
+      
+      if constexpr (std::is_same_v<arg_t, ok_t>) {
+        ok_callback(std::forward<decltype(arg)>(arg)) ;
+      }
+
+      else if constexpr (std::is_same_v<arg_t, errno_t>) {
+        error_callback(std::forward<decltype(arg)>(arg)) ;
+      }
+    }, r) ;
+  } ;
+}
+
+result<std::ifstream, std::string> open_file (const std::string& filename) {
+  std::ifstream file = std::ifstream(filename, std::ios::in) ;
+  result<std::ifstream, std::string> r ;
+  
+  if (file.is_open()) {
+    r = std::move(file) ;
+  }
+
+  else { 
+    r = std::string(ERROR_ON_FILE_OPENING) ;
+  }
+
+  return r ;
+}
+
+struct file_content { 
+  std::string content ; 
+} ;
+
+using error_message_t = std::string ;
+using file_iterator_t = std::istreambuf_iterator<char> ;
+
+auto read_file(const std::string& filename) {
+  result<file_content, error_message_t> r ;
+  auto opened = open_file(filename) ;
+
+  match(opened) (
+    [&r] (std::ifstream& file) {r = file_content {std::string(file_iterator_t(file), file_iterator_t())} ;},
+    [&r] (const error_message_t& message) {r = std::string(CANT_READ_FILE) + message ;}) ;
+
+  return r ;
+}
+
+bool is(auto l) {
+  return [l] (auto c) {return c == l;} ;
+}
+
+bool inner(auto l, auto r) {
+  return [l, r] (auto c) {return l <= c && c <= r ;} ;
+}
+
+
+using db_t = sqlite3*;
+
+auto open_database(std::string_view db_name) {
+  sqlite3* db ;
+  result<db_t, error_message_t> r ;
+  
+  return 
+    sqlite3_open(db_name.data(), &db) == SQLITE_OK ?
+     (r = db) : (r = std::string(CANT_OPEN_DATABASE)) ;
+}
+
+auto sql_exec(db_t db, std::string_view query) {
+  char* error_message_buffer = NULL;
+  result<int, error_message_t> r ;
+
+  switch(sqlite3_exec(db, query.data(), NULL, NULL, &error_message_buffer)) {
+    case SQLITE_OK: return (r = SQLITE_OK) ;
+    default : return (sqlite3_free(error_message_buffer), r = std::string(CANT_CREATE_TOKEN_TABLE)) ;
+  } ;
+}
+
+auto create_tokens_table(db_t db) {
+  constexpr const char* query =  
+    "create table if not exists t_token (            "
+    "  id        integer  primary key,               "
+    "  filename  text     not null   ,               "
+    "  line      integer  not null   ,               "
+    "  column    integer  not null   ,               "
+    "  value     text     not null   ,               "
+    "  type      integer  not null   ,               "
+    "  previous  integer             ,               "
+    "  next      integer             ,               "
+    "                                                "
+    "  foreign key(previous) references t_token(id), "
+    "  foreign key(next) references t_token(id))     " ;
+  
+  return sql_exec(db, query) ;
+}
 
 /// MAIN SCRIPT
 
@@ -417,11 +461,19 @@ int main(int argc, const char** argv) {
 
   sqlite3_close(db) ;*/
 
-  auto r = read_file("lol2.sia") ;
+  auto r = read_file("lol.sia") ;
 
   match(r) 
-    ([] (file_content& file) {std::cout << "OK" << file.content << std::endl ; },
-     [] (const std::string& message) {std::cout << "KO" << message << std::endl ; }) ;
+    ([] (file_content& file) {std::cout << "OK " << file.content << std::endl ; },
+     [] (const std::string& message) {std::cout << "KO " << message << std::endl ; }) ;
+
+  match(open_database("lol.db")) (
+    [] (db_t& db) {
+      match(create_tokens_table(db) ) (
+        [] (auto) {std::cout << "token table created" << std::endl ;},
+        [] (const std::string& message) { std::cout << "KO " << message << std::endl ;});
+    }, 
+    [] (const std::string& message) {std::cout << "KO " << message << std::endl ; }) ;
 
   return EXIT_SUCCESS ;
 }

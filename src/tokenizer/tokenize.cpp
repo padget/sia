@@ -9,338 +9,123 @@
 #include <type_traits>
 #include <utility>
 
-
-
+const auto ERROR_ON_FILE_OPENING   = std::string("can't open the file.") ;
+const auto CANT_READ_FILE          = std::string("can't read file.") ;
+const auto CANT_OPEN_DATABASE      = std::string("can't open the database.") ;
+const auto CANT_CREATE_TOKEN_TABLE = std::string("can't create tokens table.") ;
+const auto CANT_EXECUTE_QUERY      = std::string("can't execute query.") ;
 
 /*
-
-typedef enum token_type {
-  token_name, 
-  token_lbrace, 
-  token_rbrace, 
-  token_comma
-} token_type ;
-
-
-typedef struct token {
-  string value ; 
-  enum token_type type ; 
-} token ;
-
-typedef struct compilation_context {
-  string filename ;
-  int line ; 
-  int column ; 
-} compilation_context ;
-
-
-
-token* token_create(string value, const token_type type) {
-  token* tok = malloc(sizeof(token)) ;
-  tok->type = type ;
-  tok->value = value ;
-
-  return tok ; 
+auto quoted(const auto& str) {
+  return std::string("\"") + str + std::string("\"") ;
 }
-
-
-bool is_between(char c, char b, char e) {
-  return b <= c && c <= e ;
-}
-
-
-bool is_lower(char c) {
-  return is_between(c, 'a', 'z') ;
-}
-
-
-bool is_upper(char c) {
-  return is_between(c, 'A', 'Z') ;
-}
-
-
-bool is_letter(char c) {
-  return is_lower(c) || is_upper(c) ;
-}
-
-
-bool is_underscore(char c) {
-  return c == '_' ;
-}
-
-
-bool is_letter_or_underscore(char c) {
-  return is_letter(c) || is_underscore(c) ;
-}
-
-bool is_less(int i, int max) {
-  return i < max ;
-}
-
-
-bool is_name_token(char* buffer) {
-  size_t buffer_length = strlen(buffer) ;
-  size_t index = 0 ;
-
-  while (is_less(index, buffer_length) && 
-         is_letter_or_underscore(buffer[index])) 
-    index++ ;
-
-  return index == buffer_length ;
-}
-
-
-bool is_lbrace_token(char* buffer) {
-  return strcmp(buffer, "(") == 0 ;
-}
-
-
-bool is_rbrace_token(char* buffer) {
-  return strcmp(buffer, ")") == 0 ;
-}
-
-
-bool is_comma_token(char* buffer) {
-  return strcmp(buffer, ",") == 0 ;
-}
-
-
-char* clear_buffer(char* buffer) {
-  memset(buffer, '\0', strlen(buffer));
-}
-
-
-char* str_create(const char* src) {
-  return strcpy(malloc(strlen(src)), src) ;
-}
-
-
-long fsize(FILE* file) {
-  fseek(file, 0L, SEEK_END);
-  return ftell(file);
-}
-
-
-char* read_all_file(FILE* file_to_read) {
-  const long filesize = fsize(file_to_read) ;
-  char* file_content = malloc(filesize) ; 
-  fread(file_content, sizeof(char), filesize, file_to_read) ;
-  return file_content ;
-}
-
-
-token* tokenize(FILE* file_to_tokenize) {
-  char* file_content = read_all_file(file_to_tokenize) ; 
-
-
-  char c ;
-  char buffer[512] = {'\0'} ; 
-  token* current_token = NULL ;
-  token* first_token = NULL ;
-
-  /*if (file_to_tokenize != NULL) {
-    unsigned index = 0 ;
-
-    while (index < sizeof(buffer) && (c = fgetc(file_to_tokenize)) != EOF) {
-      buffer[index] = (char) c ;
-      ++index ;
-
-      if (is_comma_token(buffer)) {
-        current_token = token_push_back(current_token, token_create(str_create(","), token_comma)) ;
-        
-        if (first_token == NULL) {
-          first_token = current_token ;
-        }
-
-        clear_buffer(buffer) ;
-      } else if (is_lbrace_token(buffer)) {
-        current_token = token_push_back(current_token, token_create(str_create("("), token_lbrace)) ;
-        
-        if (first_token == NULL) {
-          first_token = current_token ;
-        }
-
-        clear_buffer(buffer) ;
-      } else if (is_rbrace_token(buffer)) {
-        current_token = token_push_back(current_token, token_create(str_create(")"), token_rbrace)) ;
-        
-        if (first_token == NULL) {
-          first_token = current_token ;
-        }
-
-        clear_buffer(buffer) ;
-      } else if (is_name_token(buffer)) {
-        while (index < sizeof(buffer) && (c = fgetc(file_to_tokenize)) != EOF && is_name_token(buffer)) {
-          buffer[index] = (char) c ;
-          ++index ;
-        }
-
-        buffer[strlen(buffer)] = '\0' ;
-
-        current_token = token_push_back(current_token, token_create(str_create(buffer), token_name)) ;
-
-        if (first_token == NULL) {
-          first_token = current_token ;
-        }
-
-        clear_buffer(buffer) ;
-      }
-    }
-  }*
-
-
-
-  free(file_content) ;
-  return first_token ;
-}
-
-
-int sia_sqlite3_exec(sqlite3* db, const char* sql) {
-  printf("[sqlite 3] Execution de la requete : \n%s\n", sql) ;
-  char* error_message_buffer ;
-  int rc ;
-
-  switch (rc = sqlite3_exec(db, sql, NULL, NULL, &error_message_buffer)) {
-    case SQLITE_OK: 
-      return rc ;
-    default: 
-      printf("Une erreur est survenue : %s\n", error_message_buffer) ;
-      sqlite3_free(error_message_buffer) ;
-      return rc ;
-  }
-}
-
-
-typedef struct token_db {
-  char*       filename ;
-  int         line     ; 
-  int         column   ; 
-  char*       value    ; 
-  token_type  type     ;
-  int         previous ;  
-  int         next     ;  
-} token_db ; 
-
-
-token_db* token_to_db(const token* a_token, const compilation_context* cmp_context) {
-  token_db* tkdb_ptr = malloc(sizeof(token_db)) ;
-
-  *tkdb_ptr = (token_db) {
-    .filename = cmp_context->filename,
-    .line = cmp_context->line,
-    .column = cmp_context->column,
-    .value = a_token->value,
-    .type = a_token->type,
-    .previous = 0, // TODO replace 0 by good value
-    .next = 0 // TODO replace 0 by good value
-  } ;
-
-  return tkdb_ptr ;
-}
-
-
-const char* create_table_tokens_query() {
-  return 
-  "create table if not exists t_token (           \n\
-    id        integer  primary key,               \n\
-    filename  text     not null   ,               \n\
-    line      integer  not null   ,               \n\
-    column    integer  not null   ,               \n\
-    value     text     not null   ,               \n\
-    type      integer  not null   ,               \n\
-    previous  integer             ,               \n\
-    next      integer             ,               \n\
-                                                  \n\
-    foreign key(previous) references t_token(id), \n\
-    foreign key(next) references t_token(id)      \n\
-  )" ;
-}
-
-
-const char* sia_db_name() {
-  return "sia.db" ;
-}
-
-
-int create_table_token(sqlite3* db) {
-  return sia_sqlite3_exec(db, create_table_tokens_query()) ;
-}
-
-char* insert_one_token_query(const token_db* a_token) {
-  const char* fmt = 
-  "insert into t_token\
-    (filename, line, column, value, type, previous, next)\n \
-    values (\"%s\", %d, %d, \"%s\", %d, %d, %d)" ;
-  const int fmt_size      = strlen(fmt), 
-            filename_size = strlen(a_token->filename),
-            value_size    = strlen(a_token->value) ;
-  char* query = malloc(fmt_size + filename_size + value_size + 50) ;
-
-  sprintf(query, fmt, 
-    a_token->filename, a_token->line, 
-    a_token->column, a_token->value, 
-    a_token->type, a_token->previous, 
-    a_token->next) ;
-
-  return query ;
-}
-
-
-int insert_one_token(sqlite3* db,  token* a_token, const compilation_context* cmp_context) {
-  token_db* a_token_db = token_to_db(a_token, cmp_context) ;
-  char* query = insert_one_token_query(a_token_db) ;
-
-  sia_sqlite3_exec(db, query) ;
-
-  free(query) ;
-  free(a_token_db) ;
-}
-
 */
 
-const auto ERROR_ON_FILE_OPENING = "une erreur est survenue lors de l'ouverture du fichier." ;
-const auto CANT_READ_FILE = "can't read file." ;
-const auto CANT_OPEN_DATABASE = "can't open the database." ;
-const auto CANT_CREATE_TOKEN_TABLE = "can't create tokens table." ;
+
+auto between (auto && min, auto && max) {
+  return [=] (auto && value) {
+    return min <= value && value <= max ;
+  } ;
+}
+
+auto oneof (auto && ... cst) {
+  return [=] (auto && value) {
+    return (... || (value == cst)) ;
+  } ;
+}
+
+auto equal (auto && cst) {
+  return [=] (auto && value) {
+    return cst == value ;
+  } ;
+}
+
+auto when (auto && cond, auto && callback) {
+  return [=] (auto && value) {
+    switch (cond(std::forward<decltype(value)>(value))) {
+      case true : 
+        callback(std::forward<decltype(value)>(value)) ;
+        return true ;
+      default : 
+        return false ; 
+    }
+  } ;
+}
+
+auto otherwise (auto && callback) {
+  return [=] (auto && value) {
+    callback(static_cast<decltype(value)&&>(value)) ;
+    return true ;
+  } ;
+}
+
+auto match (auto && r) {
+  return [&] (auto && ... whens) {
+    return (... || whens(r)) ;
+  } ;
+}
+
+auto print(auto const& message) {
+  return [=] (auto &&) {std::cout << message << '\n' ;} ; 
+}
+
+auto oops() {
+  return print("oops !") ;
+}
 
 template <typename type_t, typename error_t> 
 using result = std::variant<type_t, error_t> ;
 
-template <size_t index, typename variant_t>
-using from = std::variant_alternative_t<index, variant_t> ;
-
-auto match(auto&& r) {
-  return [&r] (auto && ok_callback, auto && error_callback) {
-    std::visit([&ok_callback, &error_callback] (auto && arg) {
-      using arg_t    = std::decay_t<decltype(arg)> ;
-      using result_t = std::decay_t<decltype(r)> ;
-      using ok_t     = from<0, result_t> ;
-      using error_t  = from<1, result_t> ;
-      
-      if constexpr (std::is_same_v<arg_t, ok_t>) {
-        ok_callback(std::forward<decltype(arg)>(arg)) ;
-      }
-
-      else if constexpr (std::is_same_v<arg_t, errno_t>) {
-        error_callback(std::forward<decltype(arg)>(arg)) ;
-      }
-    }, r) ;
+auto is_ok () {
+  return [] (auto && res) {
+    return res.index() == 0 ; 
   } ;
 }
 
-result<std::ifstream, std::string> open_file (const std::string& filename) {
+auto is_error () {
+  return [] (auto && res) {
+    return res.index() == 1 ;
+  } ;
+}
+
+template <typename type_t>
+auto unwrap (auto && callback) {
+  return [=] (auto && res) {
+    callback(std::get<type_t>(std::forward<decltype(res)>(res))) ; 
+  } ;
+}
+
+template <size_t index, typename variant_t>
+using from_t = std::variant_alternative_t<index, variant_t> ;
+
+auto match_result (auto && r) {
+  using r_t  = std::decay_t<decltype(r)> ; 
+  using ok_t = from_t<0, r_t> ;
+  using ko_t = from_t<1, r_t> ;
+
+  return [&r] (auto && ok_cllbk, auto ko_cllbk) {
+    return match(r) (
+      when(is_ok(), unwrap<ok_t>(ok_cllbk)), 
+      when(is_error(), unwrap<ko_t>(ko_cllbk))) ;
+  } ;
+}
+
+auto assign (auto & lvalue, auto transformer) {
+  return [&lvalue, transformer] (auto && value) {
+    lvalue = transformer(std::forward<decltype(value)>(value)) ;
+  } ;
+}
+
+auto open_file (const std::string& filename) {
   std::ifstream file = std::ifstream(filename, std::ios::in) ;
   result<std::ifstream, std::string> r ;
   
-  if (file.is_open()) {
-    r = std::move(file) ;
+  switch(file.is_open()) {
+    case true : r = std::move(file) ; break ;
+    default   : r = ERROR_ON_FILE_OPENING ; break ;
   }
 
-  else { 
-    r = std::string(ERROR_ON_FILE_OPENING) ;
-  }
-
-  return r ;
+  return r ; 
 }
 
 struct file_content { 
@@ -350,35 +135,40 @@ struct file_content {
 using error_message_t = std::string ;
 using file_iterator_t = std::istreambuf_iterator<char> ;
 
-auto read_file(const std::string& filename) {
-  result<file_content, error_message_t> r ;
-  auto opened = open_file(filename) ;
+auto extract_file_content () {
+  return [] (auto && ifs) {
+    return file_content {std::string(file_iterator_t(ifs), file_iterator_t())} ;
+  } ;
+}
 
-  match(opened) (
-    [&r] (std::ifstream& file) {r = file_content {std::string(file_iterator_t(file), file_iterator_t())} ;},
-    [&r] (const error_message_t& message) {r = std::string(CANT_READ_FILE) + message ;}) ;
+auto right_concat(auto && value) {
+  return [=] (auto && message) {
+    return value + message ;
+  } ;
+}
+
+auto read_file(const std::string& filename) {
+  auto opened = open_file(filename) ;
+  result<file_content, error_message_t> r ;
+
+  match(open_file(filename)) (
+    when(is_ok(), unwrap<std::ifstream>(assign(r, extract_file_content()))),
+    otherwise(unwrap<error_message_t>(assign(r, right_concat(CANT_READ_FILE))))) ;
 
   return r ;
 }
 
-bool is(auto l) {
-  return [l] (auto c) {return c == l;} ;
-}
-
-bool inner(auto l, auto r) {
-  return [l, r] (auto c) {return l <= c && c <= r ;} ;
-}
-
-
+/*
 using db_t = sqlite3*;
 
-auto open_database(std::string_view db_name) {
+result<db_t, error_message_t>
+open_database(std::string_view db_name) {
   sqlite3* db ;
-  result<db_t, error_message_t> r ;
   
-  return 
-    sqlite3_open(db_name.data(), &db) == SQLITE_OK ?
-     (r = db) : (r = std::string(CANT_OPEN_DATABASE)) ;
+  switch(sqlite3_open(db_name.data(), &db)) {
+    case SQLITE_OK : return {db} ;
+    default        : return {CANT_OPEN_DATABASE} ;
+  }
 }
 
 auto sql_exec(db_t db, std::string_view query) {
@@ -386,9 +176,12 @@ auto sql_exec(db_t db, std::string_view query) {
   result<int, error_message_t> r ;
 
   switch(sqlite3_exec(db, query.data(), NULL, NULL, &error_message_buffer)) {
-    case SQLITE_OK: return (r = SQLITE_OK) ;
-    default : return (sqlite3_free(error_message_buffer), r = std::string(CANT_CREATE_TOKEN_TABLE)) ;
+    case SQLITE_OK: r = SQLITE_OK ; break ;
+    default       : r = CANT_EXECUTE_QUERY + " " + quoted(query.data()) ; break ;
   } ;
+
+  sqlite3_free(error_message_buffer) ;
+  return r ;
 }
 
 auto create_tokens_table(db_t db) {
@@ -409,72 +202,76 @@ auto create_tokens_table(db_t db) {
   return sql_exec(db, query) ;
 }
 
+struct token {
+  enum class type : size_t {
+    name, 
+    lbrace, 
+    rbrace, 
+    comma
+  } ;
+  
+  std::string filename ;
+  int         line     ; 
+  int         column   ; 
+  std::string value    ; 
+  type        tp       ;
+} ; 
+
+
+#include <sstream>
+
+auto insert_one_token(db_t db, const token & tk) {
+  auto query_builder = std::stringstream() ;
+  query_builder << "insert into t_token (filename," 
+                << "line, column, value, type) values (" 
+                << std::move(quoted(tk.filename)) << ", "
+                << tk.line << ", "
+                << tk.column << ", "
+                << std::move(quoted(tk.value)) << ", "
+                << static_cast<size_t>(tk.tp) << ")" ;
+  return sql_exec(db, query_builder.str().c_str()) ;
+}
+
+*/
+
 /// MAIN SCRIPT
 
 int main(int argc, const char** argv) {
-  /*
-  if (argc != 2) {
-    perror("arguments list invalid (tokenize <filename>.sia)\n" ) ;
-    return EXIT_FAILURE ;
-  }
-
-  sqlite3* db ; 
-
-  switch(sqlite3_open(sia_db_name(), &db)) {
-    case SQLITE_OK: printf("Base sia.db ouverte avec succes\n") ; break ;
-    default: return EXIT_FAILURE ;
-  }
-
-  switch (create_table_token(db)) {
-    case SQLITE_OK: printf("Table t_token créée avec succes\n") ; break ;
-    default: return EXIT_FAILURE ;
-  }
-
-  token t = (token) {
-    .value = "name",
-    .type = token_name 
-  } ;
-
-  compilation_context ctx = (compilation_context ) {
-    .filename = "lol.sia",
-    .line = 1, 
-    .column = 0
-  } ;
-
-  insert_one_token(db, &t, &ctx) ;
-
-  const char* expected_extension = "sia" ;
-  const char* filename = argv[1] ;
-  const char* extension = strrchr(argv[1], '.') ;
-  
-  if (extension == NULL 
-      || strlen(extension) != strlen(expected_extension) + 1
-      || !strcmp(extension, expected_extension)) {
-    perror("the argument filename is not a sia file (*.sia)\n") ;
-
-    return EXIT_FAILURE ;
-  }
-
-  printf("extract tokens from %s", argv[1]) ;
-  FILE* file_to_tokenize = fopen(filename, "r") ;
-  tokenize(file_to_tokenize) ;
-
-  sqlite3_close(db) ;*/
-
-  auto r = read_file("lol.sia") ;
+ /* auto r = read_file("lol.sia") ;
 
   match(r) 
     ([] (file_content& file) {std::cout << "OK " << file.content << std::endl ; },
-     [] (const std::string& message) {std::cout << "KO " << message << std::endl ; }) ;
+     [] (const error_message_t& message) {std::cout << "KO " << message << std::endl ; }) ;
 
-  match(open_database("lol.db")) (
+  match(open_database("lol.db")) ( // TODO close db !!!!
     [] (db_t& db) {
       match(create_tokens_table(db) ) (
-        [] (auto) {std::cout << "token table created" << std::endl ;},
-        [] (const std::string& message) { std::cout << "KO " << message << std::endl ;});
-    }, 
-    [] (const std::string& message) {std::cout << "KO " << message << std::endl ; }) ;
+        [&db] (auto) {
+          std::cout << "token table created" << std::endl ;
+          token tk = {.filename = "lol.sia", 
+                     .line = 0, 
+                     .column = 0, 
+                     .value="yo"} ;
 
+          match(insert_one_token(db, tk)) (
+            [] (int res) {std::cout << res << std::endl ; }, 
+            [] (const error_message_t& message) {std::cout << "KO " << message << std::endl ;}) ;  
+        },
+        [] (const error_message_t& message) {std::cout << "KO " << message << std::endl ;});
+    }, 
+    [] (const error_message_t& message) {std::cout << "KO " << message << std::endl ; }) ;
+*/
+  
+  match ('b') (
+    when(equal('b'), print("i'm equal to b")),
+    when(between('a', 'z'), print("i'm between a and z")), 
+    when(between('A', 'Z'), print("i'm between A and Z")), 
+    otherwise(oops())) ;
+
+  match (read_file("lol.sia")) (
+    when(is_ok(), unwrap<file_content>([] (auto && fcontent) { std::cout << fcontent.content << std::endl ;})), 
+    otherwise(oops())) ;
+  
   return EXIT_SUCCESS ;
 }
 

@@ -172,30 +172,30 @@ namespace sia::token {
       between('a', *begin, 'z') || 
       between('a', *begin, 'z') || 
       equal('_', *begin))) {
-      ++begin ;
+      begin = begin + 1 ;
     }
 
     return begin ;
   }
 
   auto next_lbrace (auto begin, auto end) {
-    return begin != end && equal(*begin, '(') ;
+    return begin != end && equal(*begin, '(') ? begin + 1 : begin ;
   }
 
   auto next_rbrace (auto begin, auto end) {
-    return begin != end && equal(*begin, ')') ;
+    return begin != end && equal(*begin, ')') ? begin + 1 : begin ;
   }
 
   auto next_number (auto begin, auto end) {
     while (begin != end && between('0', *begin, '9')) {
-      ++begin ;
+      begin = begin + 1 ;
     }
 
     return begin ;
   } 
 
   auto next_comma (auto begin, auto end) {
-    return begin != end && equal(*begin, ',') ;
+    return begin != end && equal(*begin, ',') ? begin + 1 : begin ;
   }
 
 
@@ -208,17 +208,22 @@ namespace sia::token {
     }
   } ;
 
-  auto filter_blank (auto begin, auto end) {
-    return std::remove_if(begin, end, is_blank) ;
+  auto next_blank (auto begin, auto end) {
+    while (begin != end && is_blank(*begin)) {
+      begin = begin + 1 ;
+    }
+
+    return begin ;
   }
 
   auto tokenize(auto & content) {
     auto begin  = std::begin(content) ;
-    auto end    = filter_blank(begin, std::end(content)) ;
     auto cursor = begin ;
+    auto end    = std::end(content) ;
 
-    
     while (begin != end) {
+      begin = next_blank(begin, end) ;
+
       auto has_advanced = 
         (((cursor = next_name(begin, end)) != begin) || 
          ((cursor = next_number(begin, end)) != begin) || 
@@ -229,7 +234,9 @@ namespace sia::token {
       if (has_advanced) {
         begin = cursor ; 
       } else { 
-        ++begin ;
+        if (begin != end) {
+          begin + 1 ;
+        }
       }
     }
     

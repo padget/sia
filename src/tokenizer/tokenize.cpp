@@ -1,17 +1,14 @@
 
 #include <string>
-#include <tuple>
-#include <iterator>
 #include <algorithm>
 #include <iostream>
-#include <variant>
 #include <type_traits>
 #include <utility>
 #include <sstream>
 
 
 namespace sia::error {
-  const auto CANT_ON_FILE_OPENING    = std::string("can't open the file.") ;
+  const auto CANT_OPEN_FILE          = std::string("can't open the file.") ;
   const auto CANT_READ_FILE          = std::string("can't read file.") ;
   const auto CANT_OPEN_DATABASE      = std::string("can't open the database.") ;
   const auto CANT_CREATE_TOKEN_TABLE = std::string("can't create tokens table.") ;
@@ -21,113 +18,13 @@ namespace sia::error {
 
 namespace sia {
   auto const endl = '\n' ; 
-}
 
-/// //////////////// ///
-/// OPTIONAL PATTERN ///
-/// //////////////// ///
-
-#include <optional>
-
-namespace sia {
-
-  template <typename option_t>
-  auto option (auto && value) {
-    return std::optional<option_t>(
-      static_cast<decltype(value)&&>(value)) ;
-  }
-
-  template <typename option_t>
-  auto option () {
-    return std::optional<option_t>() ;
-  }
-
-  auto has_value (auto && opt) {
-    return opt.has_value() ;
-  }
-
-  auto on_value(auto && opt, auto && func) {
-    if (has_value(static_cast<decltype(opt)&&>(opt))) 
-      return static_cast<decltype(func)&&>(func) (
-        static_cast<decltype(opt.value())&&>(opt.value())) ;
-  }
-
-  auto on_no_value(auto && opt, auto && func) {
-    if (!has_value(static_cast<decltype(opt)&&>(opt))) 
-      return static_cast<decltype(func)&&>(func) () ;
-  }
-}
-
-/// //////////////// ///
-/// EXPECTED PATTERN ///
-/// //////////////// ///
-
-#include <variant> 
-
-namespace sia {
-
-  template <typename ... type_t>
-  using variant = std::variant<type_t...> ;
-
-  template <typename type_t, typename error_t>
-  using expected = variant<type_t, error_t> ;
-
-  auto is_ok (auto const & expect) {
-    return expect.index() == 0 ; 
-  }
-
-  auto is_ko (auto const & expect) {
-    return !is_ok(expect) ;
-  }
-
-  auto on_ok (auto && expect, auto && func) {
-    if (is_ok (static_cast<decltype(expect)&&>(expect))) {
-      static_cast<decltype(func)&&>(func) (
-        static_cast<decltype(expect)&&>(expect)) ;
-    }
-  }
-
-  auto on_ko (auto && expect, auto && func) { 
-    if (is_ko (static_cast<decltype(expect)&&>(expect))) {
-      static_cast<decltype(func)&&>(func) (
-        static_cast<decltype(expect)&&>(expect)) ;
-    }
-  }
-}
-
-/// /////////////// ///
-/// FILE OPERATIONS ///
-/// /////////////// ///
-
-#include <fstream>
-
-namespace sia {
-  
-  auto open_file (auto const & filename) {
-    using file_t = std::ifstream ;
-    
-    auto file = std::ifstream(filename, std::ios::in) ;
-    return file.is_open() ? option<file_t>(std::move(file)) : option<file_t>() ;
-  }
-
-  auto is_open(auto const & optional_file) {
-    return has_value(optional_file) ;
-  }
-
-  struct file_content { 
-    std::string content ; 
-  } ;
-
-  using error_message_t = std::string ;
-
-  auto extract_file_content (auto && ifs) {
-    using file_begin_t = std::istreambuf_iterator<char> ;
-    using file_end_t = file_begin_t ;
-
-    return option<std::string>(
-      std::string(
-        file_begin_t(ifs), 
-        file_end_t())) ;
+  auto quote (const auto & str) {
+    auto ss = std::stringstream() ;
+    ss << '\'' ;
+    ss << str  ;
+    ss << '\'' ;
+    return ss.str() ;
   }
 }
 
@@ -136,7 +33,6 @@ namespace sia {
 /// //////////////// ///
 
 #include <list>
-#include <tuple>
 
 namespace sia::token {
 
@@ -149,6 +45,11 @@ namespace sia::token {
       name, 
       lbrace, 
       rbrace, 
+      lbracket, 
+      rbracket, 
+      point, 
+      colon, 
+      semi_colon,
       comma, 
       number
     } ;
@@ -166,10 +67,10 @@ namespace sia::token {
               token::type tp) {
     return (token) {
       .filename = filename,
-      .line = line, 
-      .column = column, 
-      .value = value, 
-      .tp = tp
+      .line     = line, 
+      .column   = column, 
+      .value    = value, 
+      .tp       = tp
     } ;
   }
 
@@ -179,47 +80,84 @@ namespace sia::token {
     return min <= value && value <= max ;
   }
 
-  auto equal (auto const & cst, auto const & value) {
+  auto equal (auto const & cst, 
+              auto const & value) {
     return cst == value ;
   }
 
-  auto oneof (auto const & value, auto const & ... cst) {
-    return (... || equal(value, cst)) ;
-  }
+  template <typename cursor_t>
+  struct match_result {
+    cursor_t cursor ; 
+    token::type tp ;
+  } ;
 
-  auto next_name (auto begin, auto end) {
-    while (begin != end && (
-      between('a', *begin, 'z') || 
-      between('a', *begin, 'z') || 
-      equal('_', *begin))) {
-      begin = begin + 1 ;
-    }
-
-    return begin ;
-  }
-
-  auto next_lbrace (auto begin, auto end) {
-    return begin != end && equal(*begin, '(') ? begin + 1 : begin ;
-  }
-
-  auto next_rbrace (auto begin, auto end) {
-    return begin != end && equal(*begin, ')') ? begin + 1 : begin ;
-  }
-
-  auto next_number (auto begin, auto end) {
-    while (begin != end && between('0', *begin, '9')) {
-      begin = begin + 1 ;
-    }
-
-    return begin ;
+  template <typename cursor_t>
+  auto result (cursor_t cursor, token::type tp) {
+    return match_result<cursor_t> {cursor, tp} ;
   } 
 
-  auto next_comma (auto begin, auto end) {
-    return begin != end && equal(*begin, ',') ? begin + 1 : begin ;
-  }
+  constexpr auto next_name = [] (auto begin, auto end) {
+    while (begin != end && (
+      between('a', *begin, 'z') || 
+      between('A', *begin, 'Z') || 
+      equal('_', *begin))) {
+      begin = std::next(begin);
+    }
+
+    return result(begin, token::type::name) ;
+  } ;
+
+  constexpr auto next_lbracket = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, '(') ? 
+      std::next(begin) : begin), token::type::lbracket) ;
+  } ;
+
+  constexpr auto next_rbracket = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, ')') ? 
+      std::next(begin) : begin), token::type::rbracket) ;
+  } ;
+
+  constexpr auto next_lbrace = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, '{') ? 
+      std::next(begin) : begin), token::type::lbrace) ;
+  } ;
+
+  constexpr auto next_rbrace = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, '}') ? 
+      std::next(begin) : begin), token::type::rbrace) ;
+  } ;
 
 
-  auto is_blank = [] (auto const & c) {
+  constexpr auto next_number = [] (auto begin, auto end) {
+    while (begin != end && 
+           between('0', *begin, '9')) {
+      begin = std::next(begin);
+    }
+
+    return result(begin, token::type::number) ;
+  } ;
+
+  constexpr auto next_comma = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, ',') ? 
+      std::next(begin) : begin), token::type::comma) ;
+  } ;
+
+  constexpr auto next_colon = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, ':') ?
+      std::next(begin) : begin), token::type::colon) ;
+  } ;
+
+  constexpr auto next_semi_colon = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, ';') ?
+      std::next(begin) : begin), token::type::semi_colon) ;
+  } ;
+  
+  constexpr auto next_point = [] (auto begin, auto end) {
+    return result((begin != end && equal(*begin, '.') ?
+      std::next(begin) : begin), token::type::point) ;
+  } ;
+
+  auto is_blank (auto const & c) {
     switch (c) {
       case '\t' : 
       case ' '  : return true ;
@@ -229,98 +167,92 @@ namespace sia::token {
 
   auto next_blank (auto begin, auto end) {
     while (begin != end && is_blank(*begin)) {
-      begin = begin + 1 ;
+      begin = std::next(begin);
     }
 
     return begin ;
   }
 
-  auto is_new_line (auto const & c) {
-    switch (c) {
-      case '\n' : return true ;
-      default   : return false ; 
-    }
-  }
-
-  auto next_new_lines (auto begin, auto end) {
-    auto nbline = 0;
-
-    while (begin != end && is_new_line(*begin)) {
-      begin = begin + 1 ; 
-      nbline = nbline + 1 ;
-    }
-
-    return std::tuple {begin, nbline} ;
-  }
-
-  auto split_string_on_new_line (auto begin, auto end) {
-    auto lines             = std::list<std::string>() ;
-    auto cursor            = begin ;
-    auto start_line_cursor = cursor ;
-
-    while (cursor != end) {
-      while (cursor != end && !is_new_line(*cursor)) {
-        cursor = cursor + 1 ; 
+  inline auto choose_first_match (
+      auto begin, auto end, 
+      auto && matcher, auto && ... matchers) {
+    auto result = matcher(begin, end) ;
+   
+    if (result.cursor != begin) {
+      return result ;
+    } else {
+      if constexpr (sizeof...(matchers) > 0) {
+        return choose_first_match(begin, end, static_cast<decltype(matchers)&&>(matchers)...) ;
+      } else {
+        return result ; 
       }
-
-      lines.push_back(std::string(start_line_cursor, cursor)) ;
-      cursor = cursor + 1 ; 
-      start_line_cursor = cursor ;
-    }
-
-    return lines ;
+    } 
   }
 
-  auto tokenize(auto & content, const compilation_context& ctxt) {
+  auto read_chunk (auto & file, auto max_size) {
+    auto chunk = std::list<std::string>() ;
+    auto index = 0ull ;
+    auto line  = std::string() ;
+
+    while (index < max_size && std::getline(file, line)) { 
+      chunk.push_back(line) ;
+      index++ ;
+    }
+    
+    std::cout << "chunk size read " << chunk.size() << std::endl ;
+    return chunk ;
+  }
+
+  auto tokenize_line (auto && line, auto linenum, const auto & context) {
     auto tokens = std::list<token>() ;
-    auto begin  = std::begin(content) ;
-    auto end    = std::end(content) ;
+    auto begin  = std::begin(line) ;
+    auto cursor = begin ;
+    auto end    = std::end(line) ;
     
-    auto global_line_num = 1 ;
-    
-    for (auto const & line : split_string_on_new_line(begin, end)) {
-      auto cursor = std::begin(line) ;
-      auto endline = std::end(line) ;
-      
-      while (cursor != endline) {
-        auto tk_cursor = cursor ;
-        auto has_advanced = 
-          (((tk_cursor = next_name(tk_cursor, end)) != cursor) || 
-          ((tk_cursor = next_number(tk_cursor, end)) != cursor) || 
-          ((tk_cursor = next_lbrace(tk_cursor, end)) != cursor) || 
-          ((tk_cursor = next_rbrace(tk_cursor, end)) != cursor) || 
-          ((tk_cursor = next_comma(tk_cursor, end)) != cursor)) ;
+    while ((cursor = next_blank(cursor, end)) != end) {  
+      auto && [tk_cursor, tp] = choose_first_match(cursor, end, 
+        next_name, next_number, next_comma, 
+        next_lbrace, next_rbrace, next_lbracket, 
+        next_rbracket, next_point, next_semi_colon, 
+        next_colon) ;
+      auto has_advanced = tk_cursor != cursor ; 
 
-        if (has_advanced) {
-          tokens.push_back(
-            create(ctxt.filename, 
-              global_line_num, 
-              std::distance(std::begin(line), cursor) + 1, 
-              std::string(cursor, tk_cursor), 
-              token::type::name)) ;
-          cursor = tk_cursor ; 
-        }
-
-        else {
-          cursor = cursor + 1 ;
-        }
+      if (has_advanced) { 
+        tokens.push_back(
+          create(context.filename, linenum, 
+            std::distance(begin, cursor) + 1, 
+            std::string(cursor, tk_cursor), tp)) ;
+        cursor = tk_cursor ; 
+      } else {
+        cursor = std::next(cursor) ;
       }
-
-      global_line_num = global_line_num + 1 ;
     }
-    
+
     return tokens ;
   }
+    
+  struct chunk_context {
+    std::string filename ; 
+    size_t      first_line_num ; 
+  } ;
 
+  auto tokenize_chunk (auto const & chunk, auto const & context) {
+    auto tokens = std::list<sia::token::token>() ;
+    auto linenum = context.first_line_num ;
+    
+    for (auto const & line : chunk) {
+      auto && line_tokens = sia::token::tokenize_line(line, linenum, context) ;
+      
+      for (auto const & tk : line_tokens) {
+        tokens.push_back(std::move(tk)) ;
+      }
 
+      linenum = linenum + 1 ;
+    }
 
+    return tokens ;
+  }
 }
-
-
-
-#include <sqlite3.h>
-
-
 
 
 
@@ -328,39 +260,39 @@ namespace sia::token {
 /// DATABASE OPERATIONS ///
 /// /////////////////// ///
 
-namespace sia::sql {
+
+#include <sqlite3.h>
+
+namespace sia::db {
 
   using db_t = sqlite3*;
-
-  auto sql_open_database (const std::string& db_name) {
-    db_t db ;
-    
-    switch(sqlite3_open(db_name.c_str(), &db)) {
-      case SQLITE_OK : return sia::option<db_t>(db) ;
-      default        : return sia::option<db_t>() ; 
-    }
-  }
-
-  auto sql_create_database (const std::string& db_name) {
-    return sql_open_database(db_name) ;
-  }
-
-  auto sqlite3_exec_f (db_t db, const std::string& query, char* buffer) {
-    return sqlite3_exec(db, query.data(), NULL, NULL, &buffer) ;
-  }
-
-  auto sql_execute_query (db_t db, const std::string& query) {
+  
+  auto execute_query (db_t db, const std::string& query) {
     char* error_message_buffer = nullptr ;
-    sqlite3_exec_f(db, query, error_message_buffer) ;
+    sqlite3_exec(db, query.data(), nullptr, nullptr, &error_message_buffer) ;
     sqlite3_free(error_message_buffer) ;
   }
 
-  auto sql_drop_tokens_table(db_t db) {
-    return sql_execute_query(db, "drop table if exists t_token;") ;
+  auto begin_transaction(db_t db) {
+    return execute_query(db, "begin transaction") ;
   }
 
-  auto sql_create_tokens_table (db_t db) {    
-    return sql_execute_query(db, 
+  auto end_transaction(db_t db) {
+    return execute_query(db, "commit") ;
+  }
+
+  auto open_database (const std::string& db_name) {
+    db_t db ;
+    sqlite3_open(db_name.c_str(), &db) ;
+    return db ;
+  }
+
+  auto drop_tokens_table_if_exists(db_t db) {
+    return execute_query(db, "drop table if exists t_token") ;
+  }
+
+  auto create_tokens_table_if_not_exists (db_t db) {    
+    return execute_query(db, 
       "create table if not exists t_token ( "
       "  id        integer  primary key,    "
       "  filename  text     not null   ,    "
@@ -370,159 +302,85 @@ namespace sia::sql {
       "  type      integer  not null   )    ") ;
   }
 
-  auto sql_begin_transaction (auto && str) {
-    return std::string("\"") + str + std::string("\"") ; 
+  auto prepare_one_token_to_be_inserted (auto const & token) {
+    auto ss = std::stringstream() ;
+    ss << '(' 
+      << sia::quote(std::move(token.filename)) << ", "
+      << token.line << ", "
+      << token.column << ", "
+      << sia::quote(std::move(token.value)) << ", "
+      << static_cast<size_t>(token.tp) 
+      << ')' ;
+    return ss.str() ;
   }
 
-  auto sql_begin_transaction(db_t db) {
-    return sql_execute_query(db, "begin transaction") ;
+  auto prepare_tokens_to_be_inserted (auto const & tokens) {
+    auto ss = std::stringstream() ;
+    auto i  = 0ull ;
+
+    for (auto const & token  : tokens) {
+      ss << std::move(prepare_one_token_to_be_inserted(token)) ;
+
+      if (i < tokens.size() - 1) {
+        ss << ',' ;
+      }
+
+      i = i + 1 ; 
+    }
+
+    return ss.str() ; 
   }
 
-  auto sql_end_transaction(db_t db) {
-    return sql_execute_query(db, "commit") ;
+  using db_t = sqlite3*;
+
+  auto insert_tokens_values(db_t db, const std::string & values) {
+    auto ss = std::stringstream() ;
+    ss << "insert into t_token (filename, line, column, value, type) values "
+      << values ;
+
+    return sia::db::execute_query(db, ss.str()) ;  
   }
-
-  auto sql_insert_one_token(db_t db, const sia::token::token & tk) {
-    auto query_builder = std::stringstream() ;
-    query_builder << "insert into t_token (filename," 
-                  << "line, column, value, type) values (" 
-                  << std::move((tk.filename)) << ", "
-                  << tk.line << ", "
-                  << tk.column << ", "
-                  << std::move((tk.value)) << ", "
-                  << static_cast<size_t>(tk.tp) << ")" ;
-    return sql_execute_query(db, query_builder.str()) ;
-  }
-
-  /*
-
-
-  
-
-  auto sql_execute_query () {
-    return [] (db_t db, const std::string& query) {
-      char* error_message_buffer = nullptr ;
-      expected<db_t, error_message_t> r ;
-      
-      match (sqlite3_exec_f()) (
-        when(equal(SQLITE_OK), assign(r, [&](auto &&){return db;})), 
-        otherwise(assign(r, [&] (auto &&...) { 
-          return CANT_EXECUTE_QUERY + " " 
-            + (query.c_str()) + " " 
-            + error_message_buffer ; }))) 
-        (db, query, error_message_buffer) ;
-
-      sqlite3_free(error_message_buffer) ;
-      return r ;
-    } ;
-  }
-
-  auto sql_drop_tokens_table() {
-    return [] (db_t db) {
-      return sql_execute_query()(db, "drop table if exists t_token;") ;
-    } ;
-  }
-
-  auto sql_create_tokens_table () {
-    return [] (db_t db) {    
-      return sql_execute_query()(db, 
-        "create table if not exists t_token ( "
-        "  id        integer  primary key,    "
-        "  filename  text     not null   ,    "
-        "  line      integer  not null   ,    "
-        "  column    integer  not null   ,    "
-        "  value     text     not null   ,    "
-        "  type      integer  not null   )    ") ;
-    } ;
-  }
-
-
-
-  auto token_new(
-    const std::string& filename, 
-    const int line,  
-    const int column, 
-    const std::string& value, 
-    const token::type tp) {
-    return token {
-      .filename = filename, 
-      .line = line, 
-      .column = column, 
-      .value = value, 
-      .tp = tp
-    } ;
-  }
-
- 
-
-
-  /// //////////////////// ///
-  /// SIA TOKENS DETECTION ///
-  /// //////////////////// ///
-
-  auto next () {
-    return [] (auto&& it) {return rstd::next(it) ;} ;
-  }
-
-  auto equal_inner (auto&& inner) {
-    return [&] (auto&& left) {
-      return *left == inner ; 
-    } ;
-  }
-
-  auto next_lbrace(auto begin, auto end) {
-    return match_expr(itself()) (
-      when(equal(end))
-      when(equal_inner('('), next())
-      otherwise(itself())) (begin) ;
-  }
-  */
 }
+
 /// /////////// ///
 /// MAIN SCRIPT ///
 /// /////////// ///
 
+
+
+
+#include <fstream>
+
 int main (int argc, const char** argv) {
-  auto filename = std::string("lol.sia") ;
-  auto file = sia::open_file(filename) ;
-  
-  sia::on_no_value(file, [] {
-    std::cout << "NOT_OPEN" << std::endl ;
-  }) ;
 
-  sia::on_value(file, [&filename] (auto & file_stream) {
-    std::cout << "THE FILE IS OPEN" << std::endl ; 
-    auto&& content = sia::extract_file_content(file_stream) ;
-    
-    sia::on_no_value(content, [] {
-      std::cout << "PAS DE CONTENU LU" << std::endl ;
-    }) ;
+  auto chunk_size      = 5ull ;
+  auto global_line_num = 1ull ;
+  auto filename        = std::string("lol2.sia") ;
+  auto file            = std::ifstream(filename, std::ios::in) ;
+  auto db_name         = filename + ".db" ;
+  auto db              = sia::db::open_database(db_name.c_str()) ;
 
-    sia::on_value(content, [&filename] (auto & content) {
-      std::cout << "THE CONTENT IS '" << content << "'\n";
-      std::cout << "tokenization \n" ; 
+  if (file.is_open() && db != nullptr) {
+    sia::db::begin_transaction(db) ;
+    sia::db::drop_tokens_table_if_exists(db) ;
+    sia::db::create_tokens_table_if_not_exists(db) ;
+    sia::db::end_transaction(db) ;
 
-      auto && tokens = sia::token::tokenize(
-        content, sia::token::compilation_context{filename}) ;
+    decltype(sia::token::read_chunk(file, chunk_size)) chunk ;
 
-      auto && db = sia::sql::sql_open_database("sia.db") ;
+    while (!(chunk = std::move(sia::token::read_chunk(file, chunk_size))).empty()) {
+      auto && context = sia::token::chunk_context{filename, global_line_num} ;
+      auto && tokens  = sia::token::tokenize_chunk(chunk, context) ;
+      auto && values  = sia::db::prepare_tokens_to_be_inserted(tokens) ;
+      
+      sia::db::begin_transaction(db) ;
+      sia::db::insert_tokens_values(db, values) ;
+      sia::db::end_transaction(db) ;
 
-      sia::on_no_value(db, [] () {
-        std::cout << sia::error::CANT_OPEN_DATABASE << sia::endl ; 
-      }) ;
-
-      sia::on_value(db, [&tokens] (auto && db) {
-        sia::sql::sql_drop_tokens_table(db) ;
-        sia::sql::sql_create_tokens_table(db) ;
-        sia::sql::sql_begin_transaction(db) ;
-        for (auto const & tk : tokens) {
-          sia::sql::sql_insert_one_token(db, tk) ;
-        }
-        sia::sql::sql_end_transaction(db) ;
-      }) ;
-    }) ;
-  }) ; 
-
+      global_line_num = global_line_num + chunk.size() ; 
+    }
+  }
+   
   std::cout << std::endl ; 
   return EXIT_SUCCESS ;
 }

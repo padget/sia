@@ -109,77 +109,112 @@ namespace sia::token
     return match_result<cursor_t> {cursor, tp} ;
   } 
 
-  constexpr auto next_name = [] (auto begin, auto end) 
+  constexpr auto next_name = 
+  [] (auto const & begin, 
+      auto const & end) 
   {
-    while (begin != end && (
-      between('a', *begin, 'z') || 
-      between('A', *begin, 'Z') || 
-      equal('_', *begin))) 
+    auto cursor = begin ;
+
+    while (cursor != end && (
+      between('a', *cursor, 'z') || 
+      between('A', *cursor, 'Z') || 
+      equal('_', *cursor))) 
     {
-      begin = std::next(begin);
+      cursor = std::next(cursor);
     }
 
-    return result(begin, token::type::name) ;
+    return result(cursor, token::type::name) ;
   } ;
 
-  constexpr auto next_lbracket = [] (auto begin, auto end)
+  auto not_end_and_equal_to (
+    auto const & begin, 
+    auto const & end, 
+    auto const & c, 
+    auto const & type) 
   {
-    return result((begin != end && equal(*begin, '(') ? 
-      std::next(begin) : begin), token::type::lbracket) ;
+    return result((begin != end && equal(*begin, c) ? 
+      std::next(begin) : begin), type) ;  
+  }
+
+
+  constexpr auto next_lbracket = 
+  [] (auto const & begin, 
+      auto const & end)
+  {
+    return not_end_and_equal_to (
+      begin, end, '(', token::type::lbracket) ;
   } ;
 
-  constexpr auto next_rbracket = [] (auto begin, auto end) 
+  constexpr auto next_rbracket = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, ')') ? 
-      std::next(begin) : begin), token::type::rbracket) ;
+    return not_end_and_equal_to (
+      begin, end, ')', token::type::rbracket) ;
   } ;
 
-  constexpr auto next_lbrace = [] (auto begin, auto end) 
+  constexpr auto next_lbrace = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, '{') ? 
-      std::next(begin) : begin), token::type::lbrace) ;
+    return not_end_and_equal_to (
+      begin, end, '{', token::type::lbrace) ;
   } ;
 
-  constexpr auto next_rbrace = [] (auto begin, auto end) 
+  constexpr auto next_rbrace = 
+  [] (auto const & begin, 
+      auto const & end) 
   {
-    return result((begin != end && equal(*begin, '}') ? 
-      std::next(begin) : begin), token::type::rbrace) ;
+    return not_end_and_equal_to (
+      begin, end, '}', token::type::rbrace) ;
   } ;
 
 
-  constexpr auto next_number = [] (auto begin, auto end) 
+  constexpr auto next_number = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    while (begin != end && 
-           between('0', *begin, '9')) 
+    auto cursor = begin ;
+
+    while (cursor != end && 
+           between('0', *cursor, '9')) 
     {
-      begin = std::next(begin);
+      cursor = std::next(cursor);
     }
 
-    return result(begin, token::type::number) ;
+    return result(cursor, token::type::number) ;
   } ;
 
-  constexpr auto next_comma = [] (auto begin, auto end) 
+  constexpr auto next_comma = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, ',') ? 
-      std::next(begin) : begin), token::type::comma) ;
+    return not_end_and_equal_to (
+      begin, end, ',', token::type::comma) ;
   } ;
 
-  constexpr auto next_colon = [] (auto begin, auto end) 
+  constexpr auto next_colon = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, ':') ?
-      std::next(begin) : begin), token::type::colon) ;
+    return not_end_and_equal_to (
+      begin, end, ':', token::type::colon) ;
   } ;
 
-  constexpr auto next_semi_colon = [] (auto begin, auto end) 
+  constexpr auto next_semi_colon = 
+ [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, ';') ?
-      std::next(begin) : begin), token::type::semi_colon) ;
+    return not_end_and_equal_to (
+      begin, end, ';', token::type::semi_colon) ;
   } ;
   
-  constexpr auto next_point = [] (auto begin, auto end) 
+  constexpr auto next_point = 
+  [] (auto const & begin, 
+      auto const & end)
   {
-    return result((begin != end && equal(*begin, '.') ?
-      std::next(begin) : begin), token::type::point) ;
+    return not_end_and_equal_to (
+      begin, end, '.', token::type::point) ;
   } ;
 
   auto is_blank (auto const & c) 
@@ -192,19 +227,25 @@ namespace sia::token
     }
   } ;
 
-  auto next_blank (auto begin, auto end) 
+  auto next_blank (
+    auto const & begin, 
+    auto const & end) 
   {
-    while (begin != end && is_blank(*begin))
+    auto cursor = begin ;
+    
+    while (cursor != end && is_blank(*cursor))
     {
-      begin = std::next(begin);
+      cursor = std::next(cursor);
     }
 
-    return begin ;
+    return cursor ;
   }
 
   inline auto choose_first_match (
-      auto begin, auto end, 
-      auto && matcher, auto && ... matchers) 
+      auto const & begin, 
+      auto const & end, 
+      auto &&      matcher, 
+      auto && ...  matchers) 
   {
     auto result = matcher(begin, end) ;
    
@@ -241,7 +282,10 @@ namespace sia::token
     return chunk ;
   }
 
-  auto tokenize_line (auto && line, auto linenum, const auto & context) 
+  auto tokenize_line (
+    auto &&      line, 
+    auto         linenum, 
+    auto const & context) 
   {
     auto tokens = std::list<token>() ;
     auto begin  = std::begin(line) ;
@@ -250,11 +294,12 @@ namespace sia::token
     
     while ((cursor = next_blank(cursor, end)) != end) 
     {  
-      auto && [tk_cursor, tp] = choose_first_match(cursor, end, 
-        next_name, next_number, next_comma, 
-        next_lbrace, next_rbrace, next_lbracket, 
-        next_rbracket, next_point, next_semi_colon, 
-        next_colon) ;
+      auto && [tk_cursor, tp] = 
+        choose_first_match(cursor, end, 
+          next_name, next_number, next_comma, 
+          next_lbrace, next_rbrace, next_lbracket, 
+          next_rbracket, next_point, next_semi_colon, 
+          next_colon) ;
       auto has_advanced = tk_cursor != cursor ; 
 
       if (has_advanced) 
@@ -300,7 +345,8 @@ namespace sia::token
     
     for (auto const & line : chunk) 
     {
-      auto && line_tokens = sia::token::tokenize_line(line, linenum, context) ;
+      auto && line_tokens = 
+        sia::token::tokenize_line(line, linenum, context) ;
       
       for (auto const & tk : line_tokens) 
       {
@@ -453,10 +499,6 @@ namespace sia::db {
 /// /////////// ///
 /// MAIN SCRIPT ///
 /// /////////// ///
-
-
-
-
 
 #include <fstream>
 

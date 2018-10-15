@@ -58,7 +58,8 @@ namespace sia::token
       colon, 
       semi_colon,
       comma, 
-      number
+      number, 
+      equal
     } ;
     
     std::string filename ;
@@ -217,6 +218,14 @@ namespace sia::token
       begin, end, '.', token::type::point) ;
   } ;
 
+  constexpr auto next_equal = 
+  [] (auto const & begin, 
+      auto const & end)
+  {
+    return not_end_and_equal_to (
+      begin, end, '=', token::type::equal) ;
+  } ;
+
   auto is_blank (auto const & c) 
   {
     switch (c) 
@@ -299,7 +308,7 @@ namespace sia::token
           next_name, next_number, next_comma, 
           next_lbrace, next_rbrace, next_lbracket, 
           next_rbracket, next_point, next_semi_colon, 
-          next_colon) ;
+          next_colon, next_equal) ;
       auto has_advanced = tk_cursor != cursor ; 
 
       if (has_advanced) 
@@ -477,7 +486,7 @@ namespace sia::db {
     db_t                db) 
   {
     auto global_line_num = 1ull ;
-    auto chunk_size      = 5ull ;
+    auto chunk_size      = 100ull ;
     
     decltype(sia::token::read_chunk(file, chunk_size)) chunk ;
     

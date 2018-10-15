@@ -287,6 +287,10 @@ namespace sia::db {
     return db ;
   }
 
+  auto close_database(db_t db) {
+    return sqlite3_close(db) ;
+  }
+
   auto drop_tokens_table_if_exists(db_t db) {
     return execute_query(db, "drop table if exists t_token") ;
   }
@@ -379,6 +383,8 @@ int main (int argc, const char** argv) {
 
       global_line_num = global_line_num + chunk.size() ; 
     }
+
+    sia::db::close_database(db) ;
   }
    
   std::cout << std::endl ; 

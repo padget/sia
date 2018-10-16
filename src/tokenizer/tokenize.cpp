@@ -39,40 +39,19 @@ namespace sia
 
 namespace sia::token 
 {
-
-  struct compilation_context 
-  {
-    std::string filename ;
-  } ;
-
   struct token 
   {
-    enum class type : size_t 
-    {
-      name, 
-      lbrace, 
-      rbrace, 
-      lbracket, 
-      rbracket, 
-      point, 
-      colon, 
-      semi_colon,
-      comma, 
-      number, 
-      equal
-    } ;
-    
     std::string filename ;
     int         line     ; 
     int         column   ; 
     std::string value    ; 
-    type        tp       ;
+    std::string type     ;
   } ; 
 
   auto create(const std::string& filename, 
               int line, int column, 
               const std::string& value, 
-              token::type tp) 
+              std::string type) 
   {
     return (token) 
     {
@@ -80,7 +59,7 @@ namespace sia::token
       .line     = line, 
       .column   = column, 
       .value    = value, 
-      .tp       = tp
+      .type     = type
     } ;
   }
 
@@ -100,12 +79,12 @@ namespace sia::token
   template <typename cursor_t>
   struct match_result
   {
-    cursor_t cursor ; 
-    token::type tp ;
+    cursor_t    cursor ; 
+    std::string tp     ;
   } ;
 
   template <typename cursor_t>
-  auto result (cursor_t cursor, token::type tp) 
+  auto result (cursor_t cursor, std::string const & tp) 
   {
     return match_result<cursor_t> {cursor, tp} ;
   } 
@@ -124,7 +103,7 @@ namespace sia::token
       cursor = std::next(cursor);
     }
 
-    return result(cursor, token::type::name) ;
+    return result(cursor, "name") ; // Replace by string
   } ;
 
   auto not_end_and_equal_to (
@@ -143,7 +122,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, '(', token::type::lbracket) ;
+      begin, end, '(', "lbracket") ;
   } ;
 
   constexpr auto next_rbracket = 
@@ -151,7 +130,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, ')', token::type::rbracket) ;
+      begin, end, ')', "rbracket") ;
   } ;
 
   constexpr auto next_lbrace = 
@@ -159,7 +138,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, '{', token::type::lbrace) ;
+      begin, end, '{', "lbrace") ;
   } ;
 
   constexpr auto next_rbrace = 
@@ -167,7 +146,7 @@ namespace sia::token
       auto const & end) 
   {
     return not_end_and_equal_to (
-      begin, end, '}', token::type::rbrace) ;
+      begin, end, '}', "rbrace") ;
   } ;
 
 
@@ -183,7 +162,7 @@ namespace sia::token
       cursor = std::next(cursor);
     }
 
-    return result(cursor, token::type::number) ;
+    return result(cursor, "number") ;
   } ;
 
   constexpr auto next_comma = 
@@ -191,7 +170,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, ',', token::type::comma) ;
+      begin, end, ',', "comma") ;
   } ;
 
   constexpr auto next_colon = 
@@ -199,7 +178,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, ':', token::type::colon) ;
+      begin, end, ':', "colon") ;
   } ;
 
   constexpr auto next_semi_colon = 
@@ -207,7 +186,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, ';', token::type::semi_colon) ;
+      begin, end, ';', "semi_colon") ;
   } ;
   
   constexpr auto next_point = 
@@ -215,7 +194,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, '.', token::type::point) ;
+      begin, end, '.', "point") ;
   } ;
 
   constexpr auto next_equal = 
@@ -223,7 +202,7 @@ namespace sia::token
       auto const & end)
   {
     return not_end_and_equal_to (
-      begin, end, '=', token::type::equal) ;
+      begin, end, '=', "equal") ;
   } ;
 
   auto is_blank (auto const & c) 
@@ -266,7 +245,9 @@ namespace sia::token
     {
       if constexpr (sizeof...(matchers) > 0) 
       {
-        return choose_first_match(begin, end, static_cast<decltype(matchers)&&>(matchers)...) ;
+        return choose_first_match(
+          begin, end, 
+          static_cast<decltype(matchers)&&>(matchers)...) ;
       } 
       else 
       {
@@ -287,7 +268,6 @@ namespace sia::token
       index++ ;
     }
     
-    std::cout << "chunk size read " << chunk.size() << std::endl ;
     return chunk ;
   }
 
@@ -377,15 +357,35 @@ namespace sia::token
 
 
 #include <sqlite3.h>
+#include <map>
+#include <functional>
 
 namespace sia::db {
 
   using db_t = sqlite3*;
+  using select_callback_t = int(void *, int, char **, char **) ;
   
-  auto execute_query (db_t db, const std::string& query) 
+  auto execute_query (
+    db_t               db, 
+    const std::string& query) 
   {
     char* error_message_buffer = nullptr ;
-    sqlite3_exec(db, query.data(), nullptr, nullptr, &error_message_buffer) ;
+    sqlite3_exec(
+      db, query.data(), nullptr, 
+      nullptr, &error_message_buffer) ;
+    sqlite3_free(error_message_buffer) ;
+  }
+
+  auto execute_select_query (
+    db_t               db, 
+    const std::string& query, 
+    select_callback_t callback, 
+    void* data_buffer = nullptr) 
+  {
+    char* error_message_buffer = nullptr ;
+    sqlite3_exec(
+      db, query.data(), callback, 
+      data_buffer, &error_message_buffer) ;
     sqlite3_free(error_message_buffer) ;
   }
 
@@ -413,7 +413,8 @@ namespace sia::db {
 
   auto drop_tokens_table_if_exists(db_t db) 
   {
-    return execute_query(db, "drop table if exists t_token") ;
+    return execute_query(db, 
+      "drop table if exists t_token") ;
   }
 
   auto create_tokens_table_if_not_exists (db_t db) 
@@ -428,7 +429,70 @@ namespace sia::db {
       "  type      integer  not null   )    ") ;
   }
 
-  auto prepare_one_token_to_be_inserted (auto const & token) 
+  
+  auto drop_tokens_table_type_if_exists (db_t db) 
+  {
+    return execute_query(db, 
+      "drop table if exists t_token_type") ;
+  }
+
+  auto create_token_type_table_if_not_exists (db_t db) 
+  {
+    return execute_query(db, 
+      "create table if not exists t_token_type ("
+      "  key      integer not_null ,            "
+      "  value    text    not null )            ") ;
+  }
+
+  auto insert_ref_values_in_token_type_table (db_t db) 
+  {
+    return execute_query(db, 
+      "insert into t_token_type (key, value) " 
+      " values (0, 'name'),                  "
+      "        (1, 'lbrace'),                "
+      "        (2, 'rbrace'),                "
+      "        (3, 'lbracket'),              "
+      "        (4, 'rbracket'),              "
+      "        (5, 'point'),                 "
+      "        (6, 'colon'),                 "
+      "        (7, 'semi_colon'),            "
+      "        (8, 'comma'),                 "
+      "        (9, 'number'),                "
+      "        (10, 'equal')                 ") ;  
+  }
+  
+  using token_types_t = std::map<std::string, int> ;
+  
+  auto & to_buffer (void* buffer) 
+  {
+    return (*(token_types_t*) buffer) ;
+  }
+
+  int select_token_types_callback (
+    void *  token_types_buffer, 
+    int     nb_column, 
+    char ** values, 
+    char ** columns)
+  {
+    to_buffer(token_types_buffer)[values[1]] = std::stoi(values[0]) ;
+    return 0 ;
+  }
+
+  auto load_token_type_table_into_map (db_t db) 
+  {
+    std::map<std::string, int> token_types ;
+    execute_select_query(
+      db, 
+      "select * from t_token_type", 
+      select_token_types_callback, 
+      &token_types) ;
+
+    return token_types ;
+  }
+
+  auto prepare_one_token_to_be_inserted (
+    auto const & token, 
+    auto const & token_types) 
   {
     auto ss = std::stringstream() ;
     ss << '(' 
@@ -436,19 +500,21 @@ namespace sia::db {
       << token.line << ", "
       << token.column << ", "
       << sia::quote(std::move(token.value)) << ", "
-      << static_cast<size_t>(token.tp) 
+      << token_types.at(token.type)
       << ')' ;
     return ss.str() ;
   }
 
-  auto prepare_tokens_to_be_inserted (auto const & tokens) 
+  auto prepare_tokens_to_be_inserted (
+    auto const & tokens, 
+    auto const & token_types) 
   {
     auto ss = std::stringstream() ;
     auto i  = 0ull ;
 
     for (auto const & token  : tokens) 
     {
-      ss << std::move(prepare_one_token_to_be_inserted(token)) ;
+      ss << std::move(prepare_one_token_to_be_inserted(token, token_types)) ;
 
       if (i < tokens.size() - 1) 
       {
@@ -463,7 +529,9 @@ namespace sia::db {
 
   using db_t = sqlite3*;
 
-  auto insert_tokens_values(db_t db, const std::string & values) 
+  auto insert_tokens_values(
+    db_t                db, 
+    const std::string & values) 
   {
     auto ss = std::stringstream() ;
     ss << "insert into t_token (filename, line, column, value, type) values "
@@ -474,10 +542,13 @@ namespace sia::db {
 
   auto prepare_database (db_t db) 
   {
-    sia::db::begin_transaction(db) ;
-    sia::db::drop_tokens_table_if_exists(db) ;
-    sia::db::create_tokens_table_if_not_exists(db) ;
-    sia::db::end_transaction(db) ;
+    begin_transaction(db) ;
+    drop_tokens_table_type_if_exists(db) ;
+    create_token_type_table_if_not_exists(db) ; 
+    insert_ref_values_in_token_type_table(db) ; 
+    drop_tokens_table_if_exists(db) ;
+    create_tokens_table_if_not_exists(db) ;
+    end_transaction(db) ;
   }
 
   auto tokenize_file (
@@ -489,12 +560,13 @@ namespace sia::db {
     auto chunk_size      = 100ull ;
     
     decltype(sia::token::read_chunk(file, chunk_size)) chunk ;
+    auto token_types = load_token_type_table_into_map(db) ;
     
     while (!(chunk = std::move(sia::token::read_chunk(file, chunk_size))).empty()) 
     {
       auto && context = sia::token::create_chunk_context(filename, global_line_num) ;
       auto && tokens  = sia::token::tokenize_chunk(chunk, context) ;
-      auto && values  = sia::db::prepare_tokens_to_be_inserted(tokens) ;
+      auto && values  = sia::db::prepare_tokens_to_be_inserted(tokens, token_types) ;
       
       sia::db::begin_transaction(db) ;
       sia::db::insert_tokens_values(db, values) ;

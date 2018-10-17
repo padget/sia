@@ -1,14 +1,10 @@
-struct add_result {
-  res : int
-  a : int
-  b : int 
-} 
+type add_result (res : int, a : int, b : int)
 
-func add (a : int, b : int) -> int {
+fn add (a : int, b : int) -> int {
   (a,  b).__add()
 }
 
-func main (args : string[]) -> int {
+fn main (args : string[]) -> int {
   let res = (1, 2).__add()
   res.res
 }

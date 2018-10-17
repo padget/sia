@@ -335,7 +335,8 @@ namespace sia::token
     for (auto const & line : chunk) 
     {
       auto && line_tokens = 
-        sia::token::tokenize_line(line, linenum, context) ;
+        sia::token::tokenize_line(
+          line, linenum, context) ;
       
       for (auto const & tk : line_tokens) 
       {
@@ -363,7 +364,8 @@ namespace sia::token
 namespace sia::db {
 
   using db_t = sqlite3*;
-  using select_callback_t = int(void *, int, char **, char **) ;
+  using select_callback_t = 
+    int(void *, int, char **, char **) ;
   
   auto execute_query (
     db_t               db, 
@@ -386,6 +388,12 @@ namespace sia::db {
     sqlite3_exec(
       db, query.data(), callback, 
       data_buffer, &error_message_buffer) ;
+
+    if (error_message_buffer != nullptr) 
+    {
+      std::cout << error_message_buffer << std::endl ; 
+    }
+
     sqlite3_free(error_message_buffer) ;
   }
 
@@ -458,7 +466,9 @@ namespace sia::db {
       "        (7, 'semi_colon'),            "
       "        (8, 'comma'),                 "
       "        (9, 'number'),                "
-      "        (10, 'equal')                 ") ;  
+      "        (10, 'equal'),                "
+      "        (11, 'fn'),                   "
+      "        (12, 'type')                  ") ;  
   }
   
   using token_types_t = std::map<std::string, int> ;
@@ -474,7 +484,8 @@ namespace sia::db {
     char ** values, 
     char ** columns)
   {
-    to_buffer(token_types_buffer)[values[1]] = std::stoi(values[0]) ;
+    to_buffer(token_types_buffer)[values[1]] = 
+      std::stoi(values[0]) ;
     return 0 ;
   }
 
@@ -514,7 +525,9 @@ namespace sia::db {
 
     for (auto const & token  : tokens) 
     {
-      ss << std::move(prepare_one_token_to_be_inserted(token, token_types)) ;
+      ss << std::move(
+        prepare_one_token_to_be_inserted(
+          token, token_types)) ;
 
       if (i < tokens.size() - 1) 
       {
@@ -534,10 +547,11 @@ namespace sia::db {
     const std::string & values) 
   {
     auto ss = std::stringstream() ;
-    ss << "insert into t_token (filename, line, column, value, type) values "
-      << values ;
+    ss << "insert into t_token "
+       << "(filename, line, column, value, type) " 
+       << " values " << values ;
 
-    return sia::db::execute_query(db, ss.str()) ;  
+    return execute_query(db, ss.str()) ;  
   }
 
   auto prepare_database (db_t db) 
@@ -551,29 +565,76 @@ namespace sia::db {
     end_transaction(db) ;
   }
 
+  auto build_update_keyword_query (
+    std::string const & keyword, 
+    auto const &        token_types) 
+  {
+    auto query = std::stringstream() ;
+    query << "update t_token set type=" 
+          << token_types.at(keyword) 
+          << " where value = '"<< keyword << "'" ;
+
+    std::cout << query.str() << std::endl ;
+
+    return query.str() ;
+  }
+
+  auto update_tokens_for_keyword (
+    db_t         db,
+    auto const & kw, 
+    auto const & token_types)
+  {
+    return execute_query(
+      db, build_update_keyword_query(
+        kw, token_types)) ;
+  }
+
+  auto update_tokens_for_keywords (
+    db_t             db, 
+    auto const &     token_types, 
+    auto const & ... keywords) 
+  {
+    (update_tokens_for_keyword(
+      db, keywords, token_types), ...) ;
+  }
+
+  auto detect_keywords (
+    db_t         db, 
+    auto const & token_types) 
+  { 
+    update_tokens_for_keywords(
+      db, token_types, "type", "fn") ;
+  }
+
   auto tokenize_file (
     const std::string & filename,
     auto &              file, 
     db_t                db) 
   {
-    auto global_line_num = 1ull ;
+    using namespace sia::token ;
+
+    auto current_line_num = 1ull ;
     auto chunk_size      = 100ull ;
     
-    decltype(sia::token::read_chunk(file, chunk_size)) chunk ;
+    decltype(read_chunk(file, chunk_size)) chunk ;
     auto token_types = load_token_type_table_into_map(db) ;
     
-    while (!(chunk = std::move(sia::token::read_chunk(file, chunk_size))).empty()) 
+    while (!(chunk = std::move(read_chunk(file, chunk_size))).empty()) 
     {
-      auto && context = sia::token::create_chunk_context(filename, global_line_num) ;
-      auto && tokens  = sia::token::tokenize_chunk(chunk, context) ;
-      auto && values  = sia::db::prepare_tokens_to_be_inserted(tokens, token_types) ;
+      auto && context = create_chunk_context(filename, current_line_num) ;
+      auto && tokens  = tokenize_chunk(chunk, context) ;
+      auto && values  = prepare_tokens_to_be_inserted(tokens, token_types) ;
       
-      sia::db::begin_transaction(db) ;
-      sia::db::insert_tokens_values(db, values) ;
-      sia::db::end_transaction(db) ;
+      begin_transaction(db) ;
+      insert_tokens_values(db, values) ;
+      end_transaction(db) ;
 
-      global_line_num = global_line_num + chunk.size() ; 
+      current_line_num = current_line_num + chunk.size() ; 
     }
+
+    begin_transaction(db) ; 
+    detect_keywords(db, token_types) ;
+    end_transaction(db) ;
   }
 }
 
@@ -585,15 +646,17 @@ namespace sia::db {
 
 int main (int argc, const char** argv) 
 {
+  using namespace sia::db ;
+  
   auto filename = std::string("lol2.sia") ;
   auto file     = std::ifstream(filename, std::ios::in) ;
-  auto db       = sia::db::open_database((filename + ".db").c_str()) ;
+  auto db       = open_database((filename + ".db").c_str()) ;
 
   if (file.is_open() && db != nullptr) 
   {
-    sia::db::prepare_database(db) ;
-    sia::db::tokenize_file(filename, file, db) ;
-    sia::db::close_database(db) ;
+    prepare_database(db) ;
+    tokenize_file(filename, file, db) ;
+    close_database(db) ;
   }
    
   std::cout << std::endl ; 

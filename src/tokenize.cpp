@@ -1,11 +1,3 @@
-
-#include <string>
-#include <algorithm>
-#include <iostream>
-#include <type_traits>
-#include <utility>
-#include <sstream>
-
 #include <sia.hpp>
 
 namespace sia::error 
@@ -376,27 +368,6 @@ namespace sia::db
       "        (11, 'fn'),                   "
       "        (12, 'type')                  ") ;  
   }
-
-  auto drop_type_table_if_exists (db_t db) 
-  {
-    return execute_query (db, 
-      "drop table if exists t_type") ;
-  }
-
-  auto create_type_table_if_not_exists (db_t db) 
-  {
-    return execute_query(db, 
-      "create table if not exists t_type ("
-	    "id integer primary key,            "
-	    "name text not null)                ") ;  
-  }
-
-  auto insert_ref_values_in_type_table (db_t db) 
-  {
-
-  }
-
-
   
   using token_types_t = std::map<std::string, int> ;
   
@@ -501,8 +472,6 @@ namespace sia::db
           << token_types.at(keyword) 
           << " where value = '"<< keyword << "'" ;
 
-    std::cout << query.str() << std::endl ;
-
     return query.str() ;
   }
 
@@ -574,7 +543,11 @@ namespace sia::db
 int main (int argc, const char** argv) 
 {
   using namespace sia::db ;
+  using namespace sia::script ;
   
+  launching_of(argv[0]) ;
+  sia::log::skip_debug() ;
+
   auto filename = std::string("lol2.sia") ;
   auto file     = std::ifstream(filename, std::ios::in) ;
   auto db       = open_database((filename + ".db").c_str()) ;
@@ -584,6 +557,11 @@ int main (int argc, const char** argv)
     prepare_database(db) ;
     tokenize_file(filename, file, db) ;
     close_database(db) ;
+  } 
+  else 
+  {
+    std::cout << std::endl ; 
+    return EXIT_FAILURE ;
   }
    
   std::cout << std::endl ; 

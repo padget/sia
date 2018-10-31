@@ -1,6 +1,8 @@
 type add_result (res : int, a : int, b : int)
 
-fn add (a : int, b : int) -> int {
+type add_result2 (b : int)
+
+fn add (a : int, b : int) -> add_result {
   (a,  b).__add()
 }
 

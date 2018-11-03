@@ -3,6 +3,7 @@
 
 #  include <sqlite3.h>
 #  include <sstream>
+#  include <fstream> 
 #  include <string>
 #  include <iostream>
 
@@ -142,12 +143,23 @@ namespace sia::db
     db_t               db, 
     const std::string& query) 
   {
+    sia::log::debug(std::string("execution de la requete : ") + query) ;
     char* error_message_buffer = nullptr ;
-    sqlite3_exec(
+    auto result = sqlite3_exec(
       db, query.data(), nullptr, 
       nullptr, &error_message_buffer) ;
-    sqlite3_free(error_message_buffer) ;
-    sia::log::debug(std::string("execution de la requete : ") + query) ;
+    std::cout << result << '\n'; 
+    if (result != SQLITE_OK || error_message_buffer != nullptr) 
+    {
+      sia::log::error(error_message_buffer) ;
+      sqlite3_free(error_message_buffer) ;
+    }
+    else
+    {
+      sia::log::debug("requete executee avec succes") ;
+    } 
+
+    return result ; 
   }
 
   auto execute_select_query (
@@ -171,15 +183,48 @@ namespace sia::db
 
   auto begin_transaction(db_t db) 
   {
+    sia::log::debug("begin transaction") ;
     return execute_query(db, "begin transaction") ;
   }
 
   auto end_transaction(db_t db) 
   {
+    sia::log::debug("end transaction") ;
     return execute_query(db, "commit") ;
   }
 
-  auto open_database (const std::string& db_name) 
+  auto rollback_transaction(db_t db) 
+  {
+    sia::log::debug("rollback transaction") ;
+    return execute_query(db, "rollback") ;
+  }
+
+  auto execute_transactional(db_t db, auto && executor)
+  {
+    begin_transaction(db) ;
+    
+    if (executor(db) == SQLITE_OK) 
+    {
+      end_transaction(db) ;
+      return SQLITE_OK ;
+    }
+    else 
+    {
+      rollback_transaction(db) ;
+      return SQLITE_ABORT ;
+    }
+  }
+
+  auto execute_transactional_query (
+    db_t                db, 
+    std::string const & query) 
+  {
+    return execute_transactional(db, [&query] (db_t db) {
+      return execute_query(db, query) ; 
+    }) ; 
+  }
+
+  auto open_database (std::string const & db_name) 
   {
     db_t db ;
     sqlite3_open(db_name.c_str(), &db) ;
@@ -189,6 +234,66 @@ namespace sia::db
   auto close_database(db_t db) 
   {
     return sqlite3_close(db) ;
+  }
+
+  auto execute_sql_file (db_t db, std::string const & filename) 
+  {
+    sia::log::info("execution fichier " + filename) ;
+    using isbuff_t = std::istreambuf_iterator<char> ;
+    
+    std::fstream sql_stream(filename.data(), std::ios::in) ;
+    auto && sql = sql_stream.is_open() ? 
+      std::string(isbuff_t(sql_stream), isbuff_t()) :
+      std::string() ;
+
+    if (sql.empty()) 
+    {
+      sia::log::error("le fichier " + filename + " n'existe pas ou bien est vide") ;
+      return SQLITE_ABORT ; 
+    }
+
+    return execute_query(db, sql) ;
+  }
+
+  auto execute_transactional_sql_file (
+    db_t                db, 
+    std::string const & filename) 
+  {
+    return execute_transactional(db, [&filename] (db_t db) {
+      return execute_sql_file(db, filename) ;
+    }) ;
+  }
+
+  auto execute_sql_files (
+    db_t                db, 
+    std::string const & filename, 
+    auto const & ...    filenames) 
+  {
+    auto result = execute_sql_file(db, filename) ;
+
+    if (result == SQLITE_OK) 
+    {
+      if constexpr (sizeof...(filenames) > 0)
+      {
+        return execute_sql_files(db, filenames...) ;
+      } 
+      else
+      {
+        return result ; 
+      } 
+    } 
+
+    return result ; 
+  }
+  
+  auto execute_transactional_sql_files (
+    db_t                db, 
+    std::string const & filename, 
+    auto const & ...    filenames) 
+  {
+    return execute_transactional(db, [&filename, &filenames...] (db_t db) {
+      return execute_sql_files(db, filename, filenames...) ;
+    }) ;
   }
 }
 

@@ -1,12 +1,3 @@
 type add_result (res : int, a : int, b : int)
-
-type add_result2 (b : int)
-
-fn add (a : int, b : int) -> add_result {
-  (a,  b).__add()
-}
-
-fn main (args : string[]) -> int {
-  let res = (1, 2).__add()
-  res.res
-}
+type add_result_prout (b : int)
+type add_result_pr ()

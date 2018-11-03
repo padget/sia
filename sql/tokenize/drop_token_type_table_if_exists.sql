@@ -1,0 +1,1 @@
+drop table if exists t_token_type;

@@ -317,58 +317,6 @@ namespace sia::token
 
 namespace sia::db 
 {
-  auto drop_tokens_table_if_exists(db_t db) 
-  {
-    return execute_query(db, 
-      "drop table if exists t_token") ;
-  }
-
-  auto create_tokens_table_if_not_exists (db_t db) 
-  {    
-    return execute_query(db, 
-      "create table if not exists t_token ( "
-      "  id        integer  primary key,    "
-      "  filename  text     not null   ,    "
-      "  line      integer  not null   ,    "
-      "  column    integer  not null   ,    "
-      "  value     text     not null   ,    "
-      "  type      integer  not null   )    ") ;
-  }
-
-  
-  auto drop_tokens_table_type_if_exists (db_t db) 
-  {
-    return execute_query(db, 
-      "drop table if exists t_token_type") ;
-  }
-
-  auto create_token_type_table_if_not_exists (db_t db) 
-  {
-    return execute_query(db, 
-      "create table if not exists t_token_type ("
-      "  key      integer not_null ,            "
-      "  value    text    not null )            ") ;
-  }
-
-  auto insert_ref_values_in_token_type_table (db_t db) 
-  {
-    return execute_query(db, 
-      "insert into t_token_type (key, value) " 
-      " values (0, 'name'),                  "
-      "        (1, 'lbrace'),                "
-      "        (2, 'rbrace'),                "
-      "        (3, 'lbracket'),              "
-      "        (4, 'rbracket'),              "
-      "        (5, 'point'),                 "
-      "        (6, 'colon'),                 "
-      "        (7, 'semi_colon'),            "
-      "        (8, 'comma'),                 "
-      "        (9, 'number'),                "
-      "        (10, 'equal'),                "
-      "        (11, 'fn'),                   "
-      "        (12, 'type')                  ") ;  
-  }
-  
   using token_types_t = std::map<std::string, int> ;
   
   auto & to_buffer (void* buffer) 
@@ -444,62 +392,28 @@ namespace sia::db
     db_t                db, 
     const std::string & values) 
   {
-    auto ss = std::stringstream() ;
-    ss << "insert into t_token "
+    auto query = std::stringstream() ;
+    query << "insert into t_token "
        << "(filename, line, column, value, type) " 
        << " values " << values ;
 
-    return execute_query(db, ss.str()) ;  
+    return execute_transactional_query(db, query.str()) ;
   }
 
   auto prepare_database (db_t db) 
   {
-    begin_transaction(db) ;
-    drop_tokens_table_type_if_exists(db) ;
-    create_token_type_table_if_not_exists(db) ; 
-    insert_ref_values_in_token_type_table(db) ; 
-    drop_tokens_table_if_exists(db) ;
-    create_tokens_table_if_not_exists(db) ;
-    end_transaction(db) ;
+    return execute_transactional_sql_files(db,
+      "./sql/tokenize/drop_token_type_table_if_exists.sql", 
+      "./sql/tokenize/create_token_type_table_if_not_exists.sql", 
+      "./sql/tokenize/drop_tokens_table_if_exists.sql", 
+      "./sql/tokenize/create_tokens_table_if_not_exists.sql",
+      "./sql/tokenize/insert_ref_values_in_token_type_table.sql") ;
   }
 
-  auto build_update_keyword_query (
-    std::string const & keyword, 
-    auto const &        token_types) 
+  auto update_tokens_for_keywords (db_t db) 
   {
-    auto query = std::stringstream() ;
-    query << "update t_token set type=" 
-          << token_types.at(keyword) 
-          << " where value = '"<< keyword << "'" ;
-
-    return query.str() ;
-  }
-
-  auto update_tokens_for_keyword (
-    db_t         db,
-    auto const & kw, 
-    auto const & token_types)
-  {
-    return execute_query(
-      db, build_update_keyword_query(
-        kw, token_types)) ;
-  }
-
-  auto update_tokens_for_keywords (
-    db_t             db, 
-    auto const &     token_types, 
-    auto const & ... keywords) 
-  {
-    (update_tokens_for_keyword(
-      db, keywords, token_types), ...) ;
-  }
-
-  auto detect_keywords (
-    db_t         db, 
-    auto const & token_types) 
-  { 
-    update_tokens_for_keywords(
-      db, token_types, "type", "fn") ;
+    return execute_transactional_sql_file(db, 
+      "./sql/tokenize/update_tokens_for_keywords.sql") ;
   }
 
   auto tokenize_file (
@@ -521,16 +435,11 @@ namespace sia::db
       auto && tokens  = tokenize_chunk(chunk, context) ;
       auto && values  = prepare_tokens_to_be_inserted(tokens, token_types) ;
       
-      begin_transaction(db) ;
       insert_tokens_values(db, values) ;
-      end_transaction(db) ;
-
       current_line_num = current_line_num + chunk.size() ; 
     }
 
-    begin_transaction(db) ; 
-    detect_keywords(db, token_types) ;
-    end_transaction(db) ;
+    update_tokens_for_keywords(db) ;
   }
 }
 
@@ -546,7 +455,7 @@ int main (int argc, const char** argv)
   using namespace sia::script ;
   
   launching_of(argv[0]) ;
-  sia::log::skip_debug() ;
+  //sia::log::skip_debug() ;
 
   auto filename = std::string("lol2.sia") ;
   auto file     = std::ifstream(filename, std::ios::in) ;

@@ -1,5 +1,6 @@
 #include <sia.hpp>
 #include <vector>
+#include <map>
 
 namespace sia::type
 {
@@ -20,39 +21,32 @@ namespace sia::db
 {
   auto drop_type_table_if_exists (db_t db) 
   {
-    return execute_query (db, 
-      "drop table if exists t_type") ;
+    return execute_sql_file (db, 
+      "") ;
   }
 
   auto create_type_table_if_not_exists (db_t db) 
   {
-    return execute_query(db, 
-      "create table if not exists t_type ("
-	    "id integer primary key,            "
-	    "name text not null)                ") ;  
+    return execute_sql_file(db, 
+      "./sql/detect_types/create_type_table_if_not_exists.sql") ;
   }
 
   auto drop_type_member_table_if_exists (db_t db) 
   {
-    return execute_query(db, 
-      "drop table if exists t_type_member") ;
+    return execute_sql_file(db, 
+      "./sql/detect_types/drop_type_member_table_if_exists.sql") ;
   }
 
   auto create_type_member_table_if_not_exists (db_t db)
   {
-    return execute_query(db, 
-      "create table if not exists t_type_member ("
-      "id number PRIMARY KEY,                    "
-      "name text not null,                       "
-      "type integer not null,                    "
-      "parent integer not null)                  ") ;
+    return execute_sql_file(db, 
+      "./sql/detect_types/create_type_member_table_if_not_exists.sql") ;
   }
 
   auto insert_ref_values_in_type_table (db_t db) 
   {
-    return execute_query(db, 
-      "insert into t_type (name)         " 
-      "values ('int'), ('byte'), ('long')") ;
+    return execute_sql_file(db, 
+      "./sql/detect_types/insert_ref_values_in_type_table.sql") ;
   }
 
   auto prepare_database (db_t db) 
@@ -65,9 +59,42 @@ namespace sia::db
     create_type_member_table_if_not_exists(db) ;
     end_transaction(db) ;
   }
-}
 
-// select tk1.id, tk2.id from t_token as tk1 , t_token as tk2 where tk1."type"= 12 and tk2."type" = 4 group by tk1.id having min(tk2.id - tk1.id) >= 0;
+  using token_types_t = std::map<std::string, int> ;
+  
+  auto & to_buffer (void* buffer) 
+  {
+    return (*(token_types_t*) buffer) ;
+  }
+
+  int select_token_types_callback (
+    void *  token_types_buffer, 
+    int     nb_column, 
+    char ** values, 
+    char ** columns)
+  {
+    to_buffer(token_types_buffer)[values[1]] = 
+      std::stoi(values[0]) ;
+    return 0 ;
+  }
+
+  auto select_types_from_tokens(db_t db) 
+  {
+    // return execute_select_query(db, 
+    //   "select                   " 
+	  //   "  tk1.id as \"type\",    " 
+	  //   "  tk2.id as \"rbracket\"," 
+	  //   "  min(tk2.id - tk1.id)   "
+    //   "from                     " 
+	  //   "  t_token as tk1,        "  
+	  //   "  t_token as tk2         "
+    //   "where                    " 
+	  //   "  tk1.\"type\" = 12      " 
+    //   "and tk2.\"type\" = 4     "
+    //   "and tk2.id - tk1.id > 0  "
+    //   "group by tk1.id          ") ; // TODO: finir ici
+  }
+}
 
 #include <cstdlib>
 

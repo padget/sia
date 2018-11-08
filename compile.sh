@@ -1,3 +1,7 @@
+echo ' -- sqlite3.o'
+
+# gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/include -fconcepts
+
 echo ' -- tokenize.exe'
 
 g++ -std=c++2a -c src/tokenize.cpp -o tokenize.o -Ilib/include -Iinclude -fconcepts

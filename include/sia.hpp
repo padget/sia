@@ -6,10 +6,10 @@
 #  include <fstream> 
 #  include <string>
 #  include <iostream>
+#  include <map>
+#  include <list> 
 
-
-
-namespace sia 
+namespace sia  
 {
   auto const endl = '\n' ; 
 
@@ -60,7 +60,8 @@ namespace sia::log
     skip_error_value = true ;
   }
 
-  auto log (std::string const & lvl, std::string const & message) 
+  auto log (std::string const & lvl, 
+            std::string const & message) 
   {
     std::cout << "[" << lvl << "] : " << message << endl ; 
   }
@@ -101,8 +102,13 @@ namespace sia::log
   {
     if (!skip_fatal_value)
     {
-      log("fatal", message) ;
+      log("fatal", std::string("/!\\") + message + std::string("/!\\")) ;
     }
+  }
+
+  auto important (std::string const & message) 
+  {
+    log("important", message) ;
   }
 }
 
@@ -148,7 +154,6 @@ namespace sia::db
     auto result = sqlite3_exec(
       db, query.data(), nullptr, 
       nullptr, &error_message_buffer) ;
-    std::cout << result << '\n'; 
     if (result != SQLITE_OK || error_message_buffer != nullptr) 
     {
       sia::log::error(error_message_buffer) ;
@@ -231,6 +236,11 @@ namespace sia::db
     return db ;
   }
 
+  auto is_db_open(db_t db) 
+  {
+    return db != nullptr ;
+  }
+
   auto close_database(db_t db) 
   {
     return sqlite3_close(db) ;
@@ -277,10 +287,6 @@ namespace sia::db
       {
         return execute_sql_files(db, filenames...) ;
       } 
-      else
-      {
-        return result ; 
-      } 
     } 
 
     return result ; 
@@ -295,6 +301,140 @@ namespace sia::db
       return execute_sql_files(db, filename, filenames...) ;
     }) ;
   }
+
+  std::map<std::string, std::string> 
+  to_map (
+    int    nb_columns, 
+    char** values, 
+    char** columns)
+  {
+    std::map<std::string, std::string> results ;
+
+    for (int i = 0 ; i < nb_columns ; ++i) 
+    {
+      results[columns[i]] = values[i] ;
+    }
+
+    return results ;
+  }
+
+  using row_t    = std::map<std::string, std::string> ;
+
+  auto store_select_result_callback (
+    auto const & mapper)
+  {
+    using mapper_t = std::decay_t<decltype(mapper)> ;
+    using item_t   = std::decay_t<decltype(mapper(std::declval<row_t&&>()))> ;
+    
+    return [] (
+      void *  results, 
+      int     nb_columns, 
+      char ** values, 
+      char ** columns) 
+    {
+      constexpr mapper_t mapper ;
+
+      auto && result = to_map(nb_columns, values, columns) ;
+      auto && obj    = mapper(std::move(result)) ;
+
+      static_cast<std::list<item_t>*>(results)->push_back(std::move(obj)) ;
+      return 0 ;
+    } ;
+  }
+
+  auto log_on_error (
+    bool    test, 
+    auto && error_message_buffer, 
+    auto && query) 
+  {
+    if (test) 
+    {
+      sia::log::error(
+        std::string() + 
+        "an error during query : '" + 
+        query.c_str() + "' : " + 
+        error_message_buffer) ;    
+    }
+  }
+
+  auto select (
+    db_t                db, 
+    std::string const & query, 
+    auto &&             mapper)  
+  {   
+    using item_t = std::decay_t<decltype(mapper(std::declval<row_t&&>()))> ;
+
+    std::list<item_t> results ;
+    
+    if (!is_db_open(db)) 
+    {
+      return results ;
+    }
+
+    char* error = nullptr ;
+    auto rc = sqlite3_exec(
+      db, query.c_str(), 
+      store_select_result_callback(mapper), 
+      static_cast<void*>(&results), 
+      &error) ;
+    
+    log_on_error(rc != SQLITE_OK, error, query) ;
+    sqlite3_free(error) ;
+    return results ;
+  }
+
+  using limit_t = std::size_t ;
+
+  auto select (
+    db_t db, 
+    std::string const & query,
+    limit_t limit, 
+    limit_t offset, 
+    auto && mapper)
+  {
+    auto limit_clause   = std::string(" limit ") + std::to_string(limit) ;
+    auto offset_clause = std::string(" offset ") + std::to_string(offset) ;  
+    return select(db, query + limit_clause + offset_clause, mapper) ;
+  }
+
+  auto ddl (
+    db_t db, 
+    std::string const & query) 
+  {
+    auto nb_impacted_lines = 0u ;
+    
+    if (!is_db_open(db)) 
+    {
+      return nb_impacted_lines ;
+    }
+
+    char* error = nullptr ;
+    auto rc = sqlite3_exec(
+      db, query.c_str(), 
+      nullptr, nullptr, 
+      &error) ;
+    
+    nb_impacted_lines = rc == SQLITE_OK ? 
+      sqlite3_changes(db) : 0u ;
+    
+    log_on_error(rc != SQLITE_OK, error, query) ;
+    sqlite3_free(error) ;
+    return nb_impacted_lines ;
+  }
+
+  struct count_mapper
+  {
+    auto operator() (row_t && row) const
+    {
+      return std::stoi(row.at("c")) ;
+    }
+  } ;
+
+  auto count (db_t db, std::string const & table)
+  {
+    auto count_query = std::string("select count(*) as c from ") + table ;
+    return select(db, count_query, count_mapper()).front() ;
+  }
 }
 
 
@@ -302,7 +442,17 @@ namespace sia::script
 {
   void launching_of (std::string const & app_name)
   {
-    sia::log::info(app_name + " lauching...") ;
+    sia::log::important(app_name + " launching...") ;
+  }
+
+  void interruption_of (std::string const & app_name) 
+  {
+    sia::log::important(app_name + " interrupted") ;
+  }
+
+  void stop_of (std::string const & app_name) 
+  {
+    sia::log::important(app_name + " quitted") ;
   }
 }
 

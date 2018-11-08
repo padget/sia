@@ -52,4 +52,7 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+# Sqlite source
+lib/include/sqlite3.c
+
 .vscode/

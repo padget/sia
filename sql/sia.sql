@@ -38,7 +38,8 @@ drop view if exists v_types_boundaries
 
 
 
-select bd.rowid as typeid, tk.* from t_token as tk
+select bd.rowid as typeid, tk.* 
+from t_token as tk
 join v_types_boundaries as bd 
 on (tk.id between bd.begin and bd.end) 
 ;

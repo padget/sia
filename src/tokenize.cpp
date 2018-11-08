@@ -314,6 +314,8 @@ namespace sia::token
 
 #include <map>
 #include <functional>
+#include <list>
+#include <tuple>
 
 namespace sia::db 
 {
@@ -330,19 +332,27 @@ namespace sia::db
     char ** values, 
     char ** columns)
   {
-    to_buffer(token_types_buffer)[values[1]] = 
-      std::stoi(values[0]) ;
     return 0 ;
   }
+
+  struct token_types_mapper
+  {
+    auto operator() (std::map<std::string, std::string> && row)  const
+    {
+      auto && value = row.at("value") ;
+      auto && key   = std::stoi(row.at("key")) ;
+      return std::tuple(value, key) ;
+    }
+  } ;
 
   auto load_token_type_table_into_map (db_t db) 
   {
     std::map<std::string, int> token_types ;
-    execute_select_query(
-      db, 
-      "select * from t_token_type", 
-      select_token_types_callback, 
-      &token_types) ;
+    auto && __token_types = select(db, 
+      "select * from t_token_type",  token_types_mapper()) ;
+    
+    for (auto && tpl : __token_types)
+      token_types[std::get<0>(tpl)] = std::get<1>(tpl) ;
 
     return token_types ;
   }

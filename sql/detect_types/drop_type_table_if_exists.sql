@@ -1,1 +1,1 @@
-drop table if exists t_type;
+drop table if exists stx_type;

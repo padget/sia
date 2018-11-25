@@ -1,4 +1,4 @@
-create table if not exists t_type_member (
+create table if not exists stx_type_member (
     id number PRIMARY KEY,
     name text not null,
     type integer not null,

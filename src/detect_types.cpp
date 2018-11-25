@@ -246,13 +246,20 @@ auto is_type_declaration (
   return rbracket_tracked ; 
 }
 
+namespace std 
+{
+  std::string to_string(bool const & v) 
+  {
+    return v ? "true" : "false" ;
+  }
+}
+
 int main (int argc, char** argv) 
 {
   using namespace sia::db ;
   using namespace sia::script ;
   
   launching_of(argv[0]) ;
-  sia::log::skip_debug() ;
 
   auto db = open_database("lol2.sia.db") ;
   
@@ -264,31 +271,28 @@ int main (int argc, char** argv)
 
   prepare_database(db) ;
 
-  std::cout << "nb element in tokens : " << count(db, "t_token") << "\n" ;
   const auto limit = 100u ; 
-  const auto offset_max = count(db, "v_types_boundaries") ;
+  const auto offset_max = count(db, "stx_types_boundaries") ;
   auto offset = 0u ; 
   auto token_types = load_token_type_table_into_map(db) ; 
    
   while (offset <= offset_max) 
   {  
     auto types_bounds = select(db, 
-      "select * from v_types_boundaries", 
+      "select * from stx_types_boundaries", 
       limit, offset, 
       type_boundaries_mapper()) ;
     
     for (auto && bounds : types_bounds)
     {    
-      auto token_query = std::string("select * from t_token as tk where tk.id between ")
+      auto token_query = std::string("select * from tkn_token as tk where tk.id between ")
         + std::to_string(bounds.begin)
         + " and "
         + std::to_string(bounds.end) ;
 
       auto tokens = select(db, token_query, token_mapper()) ;
-
-      std::cout << std::boolalpha 
-                << is_type_declaration(build_track(tokens.begin(), tokens.end()), token_types).matched 
-                << "\n" ;
+      auto type_declaration_track = is_type_declaration(build_track(tokens.begin(), tokens.end()), token_types) ;
+      sia::log::debug(std::string() + "type declaration " + std::to_string(type_declaration_track.matched)) ;
     }
 
     offset += limit ; 

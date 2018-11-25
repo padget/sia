@@ -1,5 +1,5 @@
 insert into
-    t_type (name)
+    stx_type (name)
 values
     ('int'),
     ('byte'),

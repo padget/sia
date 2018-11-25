@@ -349,7 +349,7 @@ namespace sia::db
   {
     std::map<std::string, int> token_types ;
     auto && __token_types = select(db, 
-      "select * from t_token_type",  token_types_mapper()) ;
+      "select * from tkn_token_type",  token_types_mapper()) ;
     
     for (auto && tpl : __token_types)
       token_types[std::get<0>(tpl)] = std::get<1>(tpl) ;
@@ -403,7 +403,7 @@ namespace sia::db
     const std::string & values) 
   {
     auto query = std::stringstream() ;
-    query << "insert into t_token "
+    query << "insert into tkn_token "
        << "(filename, line, column, value, type) " 
        << " values " << values ;
 

@@ -1,1 +1,1 @@
-drop table if exists t_type_member;
+drop table if exists stx_type_member;

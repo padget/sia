@@ -1,5 +1,5 @@
 insert into
-    t_token_type (key, value)
+    tkn_token_type (key, value)
 values
     (0, 'name'),
     (1, 'lbrace'),

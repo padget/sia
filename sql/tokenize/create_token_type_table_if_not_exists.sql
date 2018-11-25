@@ -1,4 +1,4 @@
-create table if not exists t_token_type (
+create table if not exists tkn_token_type (
     key integer not null,
     value text not null
 );

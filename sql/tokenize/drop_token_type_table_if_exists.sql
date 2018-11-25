@@ -1,1 +1,1 @@
-drop table if exists t_token_type;
+drop table if exists tkn_token_type;

@@ -1,4 +1,4 @@
-create table if not exists t_type (
+create table if not exists stx_type (
     id integer primary key,
     name text not null
 );

@@ -1,6 +1,6 @@
 echo ' -- sqlite3.o'
 
-# gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/include -fconcepts
+# gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/Iinclude
 
 echo ' -- tokenize.exe'
 

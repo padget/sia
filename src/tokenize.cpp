@@ -1,15 +1,5 @@
 #include <sia.hpp>
 
-namespace sia::error 
-{
-  const auto CANT_OPEN_FILE          = std::string("can't open the file.") ;
-  const auto CANT_READ_FILE          = std::string("can't read file.") ;
-  const auto CANT_OPEN_DATABASE      = std::string("can't open the database.") ;
-  const auto CANT_CREATE_TOKEN_TABLE = std::string("can't create tokens table.") ;
-  const auto CANT_EXECUTE_QUERY      = std::string("can't execute query.") ;
-  const auto CANT_INSERT_TOKEN       = std::string("can't insert token.") ;
-}
-
 /// //////////////// ///
 /// REGEX CONDITIONS ///
 /// //////////////// ///
@@ -345,21 +335,8 @@ namespace sia::db
     }
   } ;
 
-  auto load_token_type_table_into_map (db_t db) 
-  {
-    std::map<std::string, int> token_types ;
-    auto && __token_types = select(db, 
-      "select * from tkn_token_type",  token_types_mapper()) ;
-    
-    for (auto && tpl : __token_types)
-      token_types[std::get<0>(tpl)] = std::get<1>(tpl) ;
-
-    return token_types ;
-  }
-
   auto prepare_one_token_to_be_inserted (
-    auto const & token, 
-    auto const & token_types) 
+    auto const & token) 
   {
     auto ss = std::stringstream() ;
     ss << '(' 
@@ -367,23 +344,20 @@ namespace sia::db
       << token.line << ", "
       << token.column << ", "
       << sia::quote(std::move(token.value)) << ", "
-      << token_types.at(token.type)
+      << sia::quote(token.type)
       << ')' ;
     return ss.str() ;
   }
 
   auto prepare_tokens_to_be_inserted (
-    auto const & tokens, 
-    auto const & token_types) 
+    auto const & tokens) 
   {
     auto ss = std::stringstream() ;
     auto i  = 0ull ;
 
     for (auto const & token  : tokens) 
     {
-      ss << std::move(
-        prepare_one_token_to_be_inserted(
-          token, token_types)) ;
+      ss << std::move(prepare_one_token_to_be_inserted(token)) ;
 
       if (i < tokens.size() - 1) 
       {
@@ -413,11 +387,8 @@ namespace sia::db
   auto prepare_database (db_t db) 
   {
     return execute_transactional_sql_files(db,
-      "./sql/tokenize/drop_token_type_table_if_exists.sql", 
-      "./sql/tokenize/create_token_type_table_if_not_exists.sql", 
       "./sql/tokenize/drop_tokens_table_if_exists.sql", 
-      "./sql/tokenize/create_tokens_table_if_not_exists.sql",
-      "./sql/tokenize/insert_ref_values_in_token_type_table.sql") ;
+      "./sql/tokenize/create_tokens_table_if_not_exists.sql") ;
   }
 
   auto update_tokens_for_keywords (db_t db) 
@@ -437,13 +408,12 @@ namespace sia::db
     auto chunk_size      = 100ull ;
     
     decltype(read_chunk(file, chunk_size)) chunk ;
-    auto token_types = load_token_type_table_into_map(db) ;
     
     while (!(chunk = std::move(read_chunk(file, chunk_size))).empty()) 
     {
       auto && context = create_chunk_context(filename, current_line_num) ;
       auto && tokens  = tokenize_chunk(chunk, context) ;
-      auto && values  = prepare_tokens_to_be_inserted(tokens, token_types) ;
+      auto && values  = prepare_tokens_to_be_inserted(tokens) ;
       
       insert_tokens_values(db, values) ;
       current_line_num = current_line_num + chunk.size() ; 

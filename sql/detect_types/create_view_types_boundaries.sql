@@ -11,7 +11,7 @@ as
 		tkn_token as tk1, 
 		tkn_token as tk2
 	where 
-		tk1."type" = 12 
-	and tk2."type" = 4
+		tk1."type" = 'type' 
+	and tk2."type" = 'rbracket'
 	and tk2.id - tk1.id > 0
 	group by tk1.id;

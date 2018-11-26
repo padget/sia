@@ -10,12 +10,32 @@ namespace sia::type
     std::string name      ;  
     std::string type_name ;
   } ; 
+
+  auto create_type_member (
+    std::string const & name, 
+    std::string const & type_name)
+  {
+    return (type_member) {
+      .name      = name, 
+      .type_name = type_name
+    } ;
+  }
   
   struct type 
   {
     std::string              name    ; 
     std::vector<type_member> members ;
   } ; 
+
+  auto create_type (
+    std::string const &              name, 
+    std::vector<type_member> const & members)
+  {
+    return (type) {
+      .name    = name, 
+      .members = members
+    } ;
+  }
 }
 
 namespace sia::db 
@@ -29,24 +49,6 @@ namespace sia::db
       "./sql/detect_types/insert_ref_values_in_type_table.sql", 
       "./sql/detect_types/drop_type_member_table_if_exists.sql",
       "./sql/detect_types/create_type_member_table_if_not_exists.sql") ;
-  }
-
-  using token_types_t = std::map<std::string, int> ;
-  
-  auto & to_buffer (void* buffer) 
-  {
-    return *static_cast<token_types_t*>(buffer) ;
-  }
-
-  int select_token_types_callback (
-    void *  token_types_buffer, 
-    int     nb_column, 
-    char ** values, 
-    char ** columns)
-  {
-    to_buffer(token_types_buffer)[values[1]] = 
-      std::stoi(values[0]) ;
-    return 0 ;
   }
 }
 
@@ -87,33 +89,10 @@ struct type_boundaries_mapper
   }
 } ;
 
-struct token_types_mapper
-{
-  auto operator() (std::map<std::string, std::string> && row)  const
-  {
-    auto && value = row.at("value") ;
-    auto && key   = std::stoi(row.at("key")) ;
-    return std::tuple(value, key) ;
-  }
-} ;
-
-auto load_token_type_table_into_map (sia::db::db_t db) 
-{
-  using namespace sia::db ;
-
-  std::map<std::string, int> token_types ;
-  auto && __token_types = select(db, 
-    "select * from t_token_type",  token_types_mapper()) ;
-  
-  for (auto && tpl : __token_types)
-    token_types[std::get<0>(tpl)] = std::get<1>(tpl) ;
-
-  return token_types ;
-}
-
 template <typename cursor_t>
 struct match_track
 {
+  cursor_t begin   ; 
   cursor_t cursor  ;
   cursor_t end     ; 
   bool     matched ;
@@ -121,23 +100,24 @@ struct match_track
 
 template <typename cursor_t>
 auto build_track (
+  cursor_t const & begin ,
   cursor_t const & cursor, 
-  cursor_t const & end, 
+  cursor_t const & end   , 
   bool matched = true)
 {
   return match_track<cursor_t> {
-    .cursor  = cursor,
-    .end     = end,  
+    .begin   = begin   ,
+    .cursor  = cursor  ,
+    .end     = end     ,  
     .matched = matched
   } ;
 }
 
 auto is_of_type (
   match_track<auto> const & track, 
-  std::string_view          type, 
-  auto const &              token_types)
+  std::string_view          type)
 {
-  return std::stoi((*track.cursor).type) == token_types.at(std::string(type)) ;
+  return (*track.cursor).type == type ;
 }
 
 auto is_not_end (match_track<auto> const & track)
@@ -147,72 +127,64 @@ auto is_not_end (match_track<auto> const & track)
 
 auto is_not_end_and_equal_to (
   match_track<auto> const & track,
-  std::string_view          type, 
-  auto const &              token_types)
+  std::string_view          type)
 {
-  auto const & matched = is_not_end(track) && is_of_type(track, type, token_types) ;
+  auto const & matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
   auto const & cursor  = matched ? std::next(track.cursor) : track.cursor ;
-  return build_track(cursor, track.end, track.matched && matched) ;
+  return build_track(track.begin, cursor, track.end, matched) ;
 }
 
 auto is_name (
-  match_track<auto> const & track,
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
-  return is_not_end_and_equal_to(track, "name", token_types) ;
+  return is_not_end_and_equal_to(track, "name") ;
 }
 
 auto is_lbracket (
-  match_track<auto> const & track,  
-  auto const &              token_types)
+  match_track<auto> const & track)
 {
-  return is_not_end_and_equal_to(track, "lbracket", token_types) ;
+  return is_not_end_and_equal_to(track, "lbracket") ;
 }
 
 auto is_rbracket (
-  match_track<auto> const & track,
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
-  return is_not_end_and_equal_to(track, "rbracket", token_types) ;
+  return is_not_end_and_equal_to(track, "rbracket") ;
 }
 
 auto is_colon (
-  match_track<auto> const & track,
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
-  return is_not_end_and_equal_to(track, "colon", token_types) ;
+  return is_not_end_and_equal_to(track, "colon") ;
 }
 
 auto is_comma (
-  match_track<auto> const & track,
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
-  return is_not_end_and_equal_to(track, "comma", token_types) ;
+  return is_not_end_and_equal_to(track, "comma") ;
 }
 
 auto is_type_param(
-  match_track<auto> const & track, 
-  auto const &              token_types)
+  match_track<auto> const & track)
 {
-  auto && name_tracked     = is_name(track, token_types)         ; 
-  auto && colon_tracked    = is_colon(name_tracked, token_types) ;
-  auto && typename_tracked = is_name(colon_tracked, token_types) ;
+  auto && name_tracked     = is_name(track)         ; 
+  auto && colon_tracked    = is_colon(name_tracked) ;
+  auto && typename_tracked = is_name(colon_tracked) ;
 
   return typename_tracked ;
 }
 
 auto is_type_param_list(
-  match_track<auto> const & track, 
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
   auto result_track = track ;
   auto current_track = track ;
 
-  while (current_track.matched && (current_track = is_type_param(current_track, token_types)).matched) 
+  while (current_track.matched && (current_track = is_type_param(current_track)).matched) 
   {    
     auto comma_track = current_track ;
     
-    if (!(comma_track = is_comma(comma_track, token_types)).matched) 
+    if (!(comma_track = is_comma(comma_track)).matched) 
     { 
       result_track = current_track ;
       break ;
@@ -227,21 +199,19 @@ auto is_type_param_list(
 }
 
 auto is_type (
-  match_track<auto> const & track,
-  auto const &              token_types)
+  match_track<auto> const & track)
 {
-  return is_not_end_and_equal_to(track, "type", token_types) ;
+  return is_not_end_and_equal_to(track, "type") ;
 }
 
 auto is_type_declaration (
-  match_track<auto> const & track,
-  auto const &              token_types) 
+  match_track<auto> const & track) 
 {
-  auto && type_tracked     = is_type(track, token_types) ;
-  auto && name_tracked     = is_name(type_tracked, token_types) ;
-  auto && lbracket_tracked = is_lbracket(name_tracked, token_types) ;
-  auto && params_tracked   = is_type_param_list(lbracket_tracked, token_types) ;
-  auto && rbracket_tracked = is_rbracket(params_tracked, token_types) ;
+  auto && type_tracked     = is_type(track)                       ;
+  auto && name_tracked     = is_name(type_tracked)                ;
+  auto && lbracket_tracked = is_lbracket(name_tracked)            ;
+  auto && params_tracked   = is_type_param_list(lbracket_tracked) ;
+  auto && rbracket_tracked = is_rbracket(params_tracked)          ;
   
   return rbracket_tracked ; 
 }
@@ -252,6 +222,150 @@ namespace std
   {
     return v ? "true" : "false" ;
   }
+}
+
+auto create_vector_of_type_member (
+  auto && ... type_members)
+{
+  return std::vector<sia::type::type_member> 
+  {std::move(type_members)...} ;
+}
+
+auto build_member (
+  auto const & begin, 
+  auto const & end) 
+{ 
+  return sia::type::create_type_member(
+    (*begin).value, (*std::next(begin, 2)).value) ;
+}
+
+std::vector<sia::type::type_member> 
+build_members (
+  auto const & begin, 
+  auto const & end) 
+{
+  using namespace sia::type ;
+
+  auto members = begin != end && (*begin).type == "name" ? 
+    create_vector_of_type_member(build_member(begin, end)) : 
+    create_vector_of_type_member() ;
+
+  auto member_end = std::next(begin, 3) ;
+
+  if (member_end != end && (*member_end).type == "comma") 
+  {
+    auto member_comma = std::next(member_end) ;
+    auto next_members = build_members(member_comma, end) ;
+    std::move(
+      next_members.begin(), 
+      next_members.end(), 
+      std::back_inserter(members)) ;
+  }
+  
+  return members ;
+}
+
+auto build_name (auto const & begin, 
+                 auto const & end) 
+{
+  return (*begin).value ; 
+}
+
+auto build_type (auto const & begin, 
+                 auto const & end) 
+{
+  using namespace sia::type ;
+
+  auto name = build_name(std::next(begin), end) ;
+  auto members = build_members(std::next(begin, 3), end) ;
+
+  return create_type(name, members) ;
+}
+
+auto create_token_query (
+  auto const & boundaries) 
+{
+  std::stringstream ss ;
+  ss << "select * from tkn_token as tk where tk.id between "
+     << std::to_string(boundaries.begin) 
+     << " and "
+     << std::to_string(boundaries.end) ;
+  return ss.str() ;
+}
+
+auto select_type_boundaries (
+  sia::db::db_t db, 
+  auto const limit, 
+  auto const offset) 
+{
+   return sia::db::select(db, 
+    "select * from stx_types_boundaries", 
+    limit, offset, 
+    type_boundaries_mapper()) ;
+}
+
+auto prepare_type_for_insert (
+  sia::type::type const & type)
+{
+  std::stringstream ss ;
+
+  ss << "insert into stx_type (name, nb_members) values ("
+     << sia::quote(type.name) << ", "
+     << type.members.size()
+     << ");\n" ; 
+
+  if (!type.members.empty())   
+  { 
+    ss << "insert into stx_type_member (name, type, parent) values " ;
+    
+    auto i = 0u ;
+
+    for (auto const & member : type.members) 
+    {
+      ss << "(" << sia::quote(member.name) << ", " 
+        << sia::quote(member.type_name) << ", "
+        << sia::quote(type.name) << ")"; 
+      
+      if (i < type.members.size() - 1) 
+      {
+        ss << ',' ;
+      }
+
+      ++i ; 
+    }
+
+    ss << ";\n" ;
+  }
+
+  return ss.str() ;
+}
+
+#include <algorithm>
+
+void on_type_error (
+  match_track<auto> const & track_in_error) 
+{ 
+  std::stringstream ss ;
+  auto begin = track_in_error.begin ;
+  auto end   = track_in_error.end   ;
+
+  while (begin != end)
+  {
+    ss << " " << (*begin).value ;
+    begin++ ;
+  }
+
+  auto line_size = 0u ;
+  std::for_each(
+    track_in_error.begin, track_in_error.end, 
+    [&sum](auto const & tk) {
+      sum += tk.value.size() ;
+    }) ;
+
+  // TODO: faire le decalage jusqu'à l'erreur
+
+
+  sia::log::error(std::string() + "une erreur est survenue lors de la detection de type : " + ss.str()) ;
 }
 
 int main (int argc, char** argv) 
@@ -265,7 +379,7 @@ int main (int argc, char** argv)
   
   if (!is_db_open(db)) 
   {
-    std::cout << std::endl ; 
+    sia::log::error("can't open the database") ;
     return EXIT_FAILURE ;
   } 
 
@@ -274,32 +388,38 @@ int main (int argc, char** argv)
   const auto limit = 100u ; 
   const auto offset_max = count(db, "stx_types_boundaries") ;
   auto offset = 0u ; 
-  auto token_types = load_token_type_table_into_map(db) ; 
    
   while (offset <= offset_max) 
   {  
-    auto types_bounds = select(db, 
-      "select * from stx_types_boundaries", 
-      limit, offset, 
-      type_boundaries_mapper()) ;
+    begin_transaction(db) ;
+
+    auto && types_bounds = select_type_boundaries(db, limit, offset) ;
     
     for (auto && bounds : types_bounds)
     {    
-      auto token_query = std::string("select * from tkn_token as tk where tk.id between ")
-        + std::to_string(bounds.begin)
-        + " and "
-        + std::to_string(bounds.end) ;
-
-      auto tokens = select(db, token_query, token_mapper()) ;
-      auto type_declaration_track = is_type_declaration(build_track(tokens.begin(), tokens.end()), token_types) ;
-      sia::log::debug(std::string() + "type declaration " + std::to_string(type_declaration_track.matched)) ;
+      auto && token_query = create_token_query(bounds) ;
+      auto && tokens      = select(db, token_query, token_mapper()) ;
+      
+      auto && type_decl_track = is_type_declaration(
+        build_track(tokens.begin(), tokens.begin(), tokens.end())) ;
+      
+      if (type_decl_track.matched) 
+      {
+        auto && type = build_type(tokens.begin(), tokens.end()) ;
+        auto && type_insert_query = prepare_type_for_insert(type) ;
+        ddl(db, type_insert_query) ;
+      } 
+      else
+      {
+        on_type_error(type_decl_track) ;
+      } 
     }
 
+    end_transaction(db) ;
     offset += limit ; 
   }
 
-
-
+  sia::script::stop_of("detect_types") ;
   close_database(db) ;
 
   std::cout << std::endl ; 

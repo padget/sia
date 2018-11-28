@@ -142,93 +142,9 @@ namespace sia::token
 namespace sia::db 
 {
   using db_t = sqlite3*;
-  using select_callback_t = 
-    int(void *, int, char **, char **) ;
+  using select_callback_t = int(void *, int, char **, char **) ;
   
-  auto execute_query (
-    db_t               db, 
-    const std::string& query) 
-  {
-    sia::log::debug(std::string("execution de la requete : ") + query) ;
-    char* error_message_buffer = nullptr ;
-    auto result = sqlite3_exec(
-      db, query.data(), nullptr, 
-      nullptr, &error_message_buffer) ;
-    if (result != SQLITE_OK || error_message_buffer != nullptr) 
-    {
-      sia::log::error(error_message_buffer) ;
-      sqlite3_free(error_message_buffer) ;
-    }
-    else
-    {
-      sia::log::debug("requete executee avec succes") ;
-    } 
-
-    return result ; 
-  }
-
-  auto execute_select_query (
-    db_t               db, 
-    const std::string& query, 
-    select_callback_t  callback, 
-    void*              data_buffer = nullptr) 
-  {
-    char* error_message_buffer = nullptr ;
-    sqlite3_exec(
-      db, query.data(), callback, 
-      data_buffer, &error_message_buffer) ;
-
-    if (error_message_buffer != nullptr) 
-    {
-      std::cout << error_message_buffer << std::endl ; 
-    }
-
-    sqlite3_free(error_message_buffer) ;
-  }
-
-  auto begin_transaction(db_t db) 
-  {
-    sia::log::debug("begin transaction") ;
-    return execute_query(db, "begin transaction") ;
-  }
-
-  auto end_transaction(db_t db) 
-  {
-    sia::log::debug("end transaction") ;
-    return execute_query(db, "commit") ;
-  }
-
-  auto rollback_transaction(db_t db) 
-  {
-    sia::log::debug("rollback transaction") ;
-    return execute_query(db, "rollback") ;
-  }
-
-  auto execute_transactional(db_t db, auto && executor)
-  {
-    begin_transaction(db) ;
-    
-    if (executor(db) == SQLITE_OK) 
-    {
-      end_transaction(db) ;
-      return SQLITE_OK ;
-    }
-    else 
-    {
-      rollback_transaction(db) ;
-      return SQLITE_ABORT ;
-    }
-  }
-
-  auto execute_transactional_query (
-    db_t                db, 
-    std::string const & query) 
-  {
-    return execute_transactional(db, [&query] (db_t db) {
-      return execute_query(db, query) ; 
-    }) ; 
-  }
-
+  
   auto open_database (std::string const & db_name) 
   {
     db_t db ;
@@ -244,62 +160,6 @@ namespace sia::db
   auto close_database(db_t db) 
   {
     return sqlite3_close(db) ;
-  }
-
-  auto execute_sql_file (db_t db, std::string const & filename) 
-  {
-    sia::log::info("execution fichier " + filename) ;
-    using isbuff_t = std::istreambuf_iterator<char> ;
-    
-    std::fstream sql_stream(filename.data(), std::ios::in) ;
-    auto && sql = sql_stream.is_open() ? 
-      std::string(isbuff_t(sql_stream), isbuff_t()) :
-      std::string() ;
-
-    if (sql.empty()) 
-    {
-      sia::log::error("le fichier " + filename + " n'existe pas ou bien est vide") ;
-      return SQLITE_ABORT ; 
-    }
-
-    return execute_query(db, sql) ;
-  }
-
-  auto execute_transactional_sql_file (
-    db_t                db, 
-    std::string const & filename) 
-  {
-    return execute_transactional(db, [&filename] (db_t db) {
-      return execute_sql_file(db, filename) ;
-    }) ;
-  }
-
-  auto execute_sql_files (
-    db_t                db, 
-    std::string const & filename, 
-    auto const & ...    filenames) 
-  {
-    auto result = execute_sql_file(db, filename) ;
-
-    if (result == SQLITE_OK) 
-    {
-      if constexpr (sizeof...(filenames) > 0)
-      {
-        return execute_sql_files(db, filenames...) ;
-      } 
-    } 
-
-    return result ; 
-  }
-  
-  auto execute_transactional_sql_files (
-    db_t                db, 
-    std::string const & filename, 
-    auto const & ...    filenames) 
-  {
-    return execute_transactional(db, [&filename, &filenames...] (db_t db) {
-      return execute_sql_files(db, filename, filenames...) ;
-    }) ;
   }
 
   std::map<std::string, std::string> 
@@ -430,10 +290,99 @@ namespace sia::db
     }
   } ;
 
-  auto count (db_t db, std::string const & table)
+  auto count (
+    db_t                db, 
+    std::string const & table)
   {
     auto count_query = std::string("select count(*) as c from ") + table ;
     return select(db, count_query, count_mapper()).front() ;
+  }
+
+  auto equal (
+    std::string const & colname, 
+    std::string const & value)
+  {
+    return colname + " = " + value ;
+  }
+
+  auto count (
+    db_t                db, 
+    std::string const & table, 
+    std::string const & condition)
+  {
+    auto count_query = 
+      std::string("select count(*) as c from ") + table 
+      + " where " + condition ;
+    return select(db, count_query, count_mapper()).front() ;
+  }
+
+  auto column (
+    std::string const & column_name, 
+    std::string const & column_type, 
+    std::string const & column_options)
+  {
+    std::stringstream ss ;
+    ss << column_name << " " 
+       << column_type << " "
+       << column_options ;
+    return ss.str() ;
+  }
+
+  auto columns (
+    auto const & column,
+    auto const & ... other) 
+  {
+    std::stringstream ss ;
+    ss << column ;
+
+    if constexpr (sizeof...(other) >= 1) 
+    {
+      ss << ", \n" ;
+      ss << columns (other...) ;
+    }
+
+    return ss.str() ;
+  }
+
+  auto create_table (
+    db_t                db,
+    std::string const & table_name, 
+    auto const & ...    column) 
+  {
+    std::stringstream ss ;
+    ss << "create table if not exists " << table_name 
+       <<  "( " << columns(column...) << ");" ; 
+    sia::log::debug(ss.str()) ;
+    return ddl(db, ss.str()) ;
+  }
+
+  auto drop_table(
+    db_t                db, 
+    std::string const & table_name)
+  {
+    std::stringstream ss ;
+    ss << "drop table if exists " << table_name ;
+    sia::log::debug(ss.str()) ;
+    return ddl(db, ss.str()) ;
+  }
+
+  
+  auto begin_transaction(db_t db) 
+  {
+    sia::log::debug("begin transaction") ;
+    return ddl(db, "begin transaction") ;
+  }
+
+  auto end_transaction(db_t db) 
+  {
+    sia::log::debug("end transaction") ;
+    return ddl(db, "commit") ;
+  }
+
+  auto rollback_transaction(db_t db) 
+  {
+    sia::log::debug("rollback transaction") ;
+    return ddl(db, "rollback") ;
   }
 }
 

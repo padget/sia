@@ -200,30 +200,13 @@ namespace sia::token
     } 
   }
 
-  auto read_chunk (auto & file, auto max_size) 
-  {
-    auto chunk = std::list<std::string>() ;
-    auto index = 0ull ;
-    auto line  = std::string() ;
-
-    while (index < max_size && std::getline(file, line)) 
-    { 
-      chunk.push_back(line) ;
-      index++ ;
-    }
-    
-    return chunk ;
-  }
-
   auto tokenize_line (
-    auto &&      line, 
-    auto         linenum, 
-    auto const & context) 
+    auto && line) 
   {
     auto tokens = std::list<token>() ;
-    auto begin  = std::begin(line) ;
+    auto begin  = std::begin(line.line) ;
     auto cursor = begin ;
-    auto end    = std::end(line) ;
+    auto end    = std::end(line.line) ;
     
     while ((cursor = next_blank(cursor, end)) != end) 
     {  
@@ -238,7 +221,7 @@ namespace sia::token
       if (has_advanced) 
       { 
         tokens.push_back(
-          create(context.filename, linenum, 
+          create(line.filename, line.num, 
             std::distance(begin, cursor) + 1, 
             std::string(cursor, tk_cursor), tp)) ;
         cursor = tk_cursor ; 
@@ -270,24 +253,20 @@ namespace sia::token
   }
 
   auto tokenize_chunk (
-    auto const & chunk, 
-    auto const & context) 
-  {
-    auto tokens = std::list<sia::token::token>() ;
-    auto linenum = context.first_line_num ;
+    auto const & chunk) 
+  { 
+    using namespace sia::token ;
+
+    auto tokens = std::list<token>() ;
     
     for (auto const & line : chunk) 
     {
-      auto && line_tokens = 
-        sia::token::tokenize_line(
-          line, linenum, context) ;
+      auto && line_tokens = tokenize_line(line) ;
       
       for (auto const & tk : line_tokens) 
       {
         tokens.push_back(std::move(tk)) ;
       }
-
-      linenum = linenum + 1 ;
     }
 
     return tokens ;
@@ -381,20 +360,49 @@ namespace sia::db
        << "(filename, line, column, value, type) " 
        << " values " << values ;
 
-    return execute_transactional_query(db, query.str()) ;
-  }
-
-  auto prepare_database (db_t db) 
-  {
-    return execute_transactional_sql_files(db,
-      "./sql/tokenize/drop_tokens_table_if_exists.sql", 
-      "./sql/tokenize/create_tokens_table_if_not_exists.sql") ;
+    return ddl(db, query.str()) ;
   }
 
   auto update_tokens_for_keywords (db_t db) 
   {
-    return execute_transactional_sql_file(db, 
-      "./sql/tokenize/update_tokens_for_keywords.sql") ;
+    return ddl(db, 
+      "update tkn_token set type='fn' where value = 'fn' ;    "
+      "update tkn_token set type='type' where value = 'type' ;") ;
+  }
+
+  struct file_line 
+  {
+    std::string filename ;
+    std::string line     ;
+    size_t      num      ;
+    size_t      length   ;
+  } ;
+
+  struct file_line_mapper 
+  {
+    auto operator() (
+      sia::db::row_t const & row) const
+    {
+      return (file_line) {
+        .filename = row.at("filename")         ,
+        .line     = row.at("line")             ,
+        .num      = std::stoull(row.at("num"))   , 
+        .length   = std::stoull(row.at("length"))  
+      } ;
+    }
+  } ;
+
+  auto select_lines(
+    sia::db::db_t       db,
+    std::string const & filename, 
+    auto const &        limit, 
+    auto const &        offset)
+  {
+    using namespace sia::db ;
+    std::stringstream ss ;
+    ss << " select filename, line, num, length "
+       << " from tkn_file_lines " ;
+    return select(db, ss.str(), limit, offset, file_line_mapper()) ; 
   }
 
   auto tokenize_file (
@@ -403,21 +411,23 @@ namespace sia::db
     db_t                db) 
   {
     using namespace sia::token ;
+    using namespace sia::db    ;
 
-    auto current_line_num = 1ull ;
-    auto chunk_size      = 100ull ;
+    auto const chunk_size = 100ull ;
+    auto const nb_lines   = count(
+      db, "tkn_file_lines", 
+      equal("filename", sia::quote(filename))) ;
+    auto offset = 0ull ; 
     
-    decltype(read_chunk(file, chunk_size)) chunk ;
-    
-    while (!(chunk = std::move(read_chunk(file, chunk_size))).empty()) 
+    while (offset <= nb_lines)  
     {
-      auto && context = create_chunk_context(filename, current_line_num) ;
-      auto && tokens  = tokenize_chunk(chunk, context) ;
+      auto && chunk   = select_lines(db, filename, chunk_size, offset) ; 
+      auto && tokens  = tokenize_chunk(chunk) ;
       auto && values  = prepare_tokens_to_be_inserted(tokens) ;
       
       insert_tokens_values(db, values) ;
-      current_line_num = current_line_num + chunk.size() ; 
-    }
+      offset += chunk_size ; 
+    } 
 
     update_tokens_for_keywords(db) ;
   }
@@ -435,26 +445,25 @@ int main (int argc, const char** argv)
   using namespace sia::script ;
   
   launching_of(argv[0]) ;
-  //sia::log::skip_debug() ;
 
   auto filename = std::string("lol2.sia") ;
   auto file     = std::ifstream(filename, std::ios::in) ;
   auto db       = open_database((filename + ".db").c_str()) ;
 
-  if (file.is_open() && db != nullptr) 
+  if (file.is_open() && is_db_open(db)) 
   {
-    prepare_database(db) ;
     tokenize_file(filename, file, db) ;
     close_database(db) ;
+    stop_of(argv[0]) ; 
+    std::cout << std::endl ; 
+    return EXIT_SUCCESS ;
   } 
   else 
   {
+    interruption_of(argv[0]) ;
     std::cout << std::endl ; 
     return EXIT_FAILURE ;
   }
-   
-  std::cout << std::endl ; 
-  return EXIT_SUCCESS ;
 }
 
 /// MAIN SCRIPT

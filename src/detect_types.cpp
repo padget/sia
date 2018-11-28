@@ -38,20 +38,6 @@ namespace sia::type
   }
 }
 
-namespace sia::db 
-{
-  auto prepare_database (db_t db) 
-  {
-    return execute_transactional_sql_files(db,
-      "./sql/detect_types/create_view_types_boundaries.sql",
-      "./sql/detect_types/drop_type_table_if_exists.sql", 
-      "./sql/detect_types/create_type_table_if_not_exists.sql", 
-      "./sql/detect_types/insert_ref_values_in_type_table.sql", 
-      "./sql/detect_types/drop_type_member_table_if_exists.sql",
-      "./sql/detect_types/create_type_member_table_if_not_exists.sql") ;
-  }
-}
-
 #include <cstdlib>
 #include <list>
 
@@ -295,8 +281,8 @@ auto create_token_query (
 
 auto select_type_boundaries (
   sia::db::db_t db, 
-  auto const limit, 
-  auto const offset) 
+  auto const & limit, 
+  auto const & offset) 
 {
    return sia::db::select(db, 
     "select * from stx_types_boundaries", 
@@ -358,8 +344,8 @@ void on_type_error (
   auto line_size = 0u ;
   std::for_each(
     track_in_error.begin, track_in_error.end, 
-    [&sum](auto const & tk) {
-      sum += tk.value.size() ;
+    [&line_size](auto const & tk) {
+      line_size += tk.value.size() ;
     }) ;
 
   // TODO: faire le decalage jusqu'à l'erreur
@@ -383,9 +369,7 @@ int main (int argc, char** argv)
     return EXIT_FAILURE ;
   } 
 
-  prepare_database(db) ;
-
-  const auto limit = 100u ; 
+  const auto limit = 1000u ; 
   const auto offset_max = count(db, "stx_types_boundaries") ;
   auto offset = 0u ; 
    

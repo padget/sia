@@ -1,6 +1,11 @@
 echo ' -- sqlite3.o'
 
-# gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/Iinclude
+gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/Iinclude
+
+echo ' -- configure_compiler.exe'
+
+g++ -std=c++2a -c src/configure_compiler.cpp -o configure_compiler.o -Ilib/include -Iinclude -fconcepts
+g++ -std=c++2a -o configure_compiler.exe configure_compiler.o lib/obj/sqlite3.o
 
 echo ' -- prepare_database.exe'
 

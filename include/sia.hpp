@@ -405,4 +405,51 @@ namespace sia::script
   }
 }
 
+namespace sia::config
+{
+  struct value_config_mapper
+  {
+    auto operator()(sia::db::row_t const & row) const
+    {
+      return row.at("value") ;
+    }
+  } ;
+
+  auto get_conf (
+    std::string const & key)
+  {
+    using namespace sia::db ;
+    auto db = open_database("sia.config.db") ;
+    
+    if (is_db_open(db))
+    {
+      auto values = select(db, 
+        std::string("select value from sia_configuration where key = ") + sia::quote(key), 
+        value_config_mapper()) ;
+      close_database(db) ;
+
+      if (values.size() == 1)
+      {
+        return values.front() ;
+      }
+      else 
+      {
+        sia::log::error(std::string("can't find a value in sia.config.db for the key ") + key) ;
+        return std::string() ;
+      }
+    }
+    else 
+    {
+      sia::log::error("can't open the sia.config.db") ;
+      return std::string() ;
+    }
+  }
+
+  auto get_conf_ull (
+    std::string const & key) 
+  {
+    return std::stoull(get_conf(key)) ;
+  }
+}
+
 #endif

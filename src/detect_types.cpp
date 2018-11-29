@@ -369,7 +369,7 @@ int main (int argc, char** argv)
     return EXIT_FAILURE ;
   } 
 
-  const auto limit = 1000u ; 
+  const auto limit = sia::config::get_conf_ull("detect_type.chunk.size") ; 
   const auto offset_max = count(db, "stx_types_boundaries") ;
   auto offset = 0u ; 
    

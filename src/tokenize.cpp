@@ -413,7 +413,7 @@ namespace sia::db
     using namespace sia::token ;
     using namespace sia::db    ;
 
-    auto const chunk_size = 100ull ;
+    auto const chunk_size = sia::config::get_conf_ull("tokenize.chunk.size") ;
     auto const nb_lines   = count(
       db, "tkn_file_lines", 
       equal("filename", sia::quote(filename))) ;

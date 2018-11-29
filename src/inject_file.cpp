@@ -54,7 +54,7 @@ auto inject_file (
 
   auto file             = std::ifstream(filename, std::ios::in) ;
   auto current_line_num = 1ull ;
-  auto const max_size   = 1000ull ;
+  auto const max_size   = sia::config::get_conf_ull("inject_file.chunk.size") ;
 
   decltype(read_chunk(file, max_size)) lines ;
 

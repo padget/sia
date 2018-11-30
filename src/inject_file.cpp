@@ -22,8 +22,9 @@ auto prepare_lines_to_be_injected (
   std::string const & filename, 
   auto const & current_line_num)
 {
-  std::stringstream ss ;
-  auto index = 0u ;
+
+  std::stringstream ss ; 
+  auto index = 0u ; 
   ss << "insert into tkn_file_lines (filename, line, num, length) values " ;
   
   for (auto && line : lines)
@@ -83,7 +84,7 @@ int main (int argc, char** argv)
     return EXIT_SUCCESS ;
   } 
   else 
-  {
+  { 
     sia::script::interruption_of(argv[0]) ;
     return EXIT_FAILURE ;
   }

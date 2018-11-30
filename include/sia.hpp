@@ -114,8 +114,13 @@ namespace sia::log
 
 namespace sia::token 
 {
+
+
   struct token 
   {
+    using id_t = unsigned long long ;
+
+    id_t        id       ;
     std::string filename ;
     int         line     ; 
     int         column   ; 

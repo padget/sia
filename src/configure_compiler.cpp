@@ -67,11 +67,13 @@ int main(int argc, char** argv)
       end_transaction(db) ;
 
       begin_transaction(db) ;
+
       for (auto property : properties)
         ddl(db, 
           "insert into sia_configuration (key, value) "
           "values (" + sia::quote(property.first) + ", " + 
           sia::quote(property.second) + ");") ; 
+
       end_transaction(db) ;
 
       return EXIT_SUCCESS ;   

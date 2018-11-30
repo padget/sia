@@ -49,6 +49,7 @@ struct token_mapper
   {
     using namespace sia::token ;
     return (token) {
+        .id       = std::stoull(row.at("id")),
         .filename = row.at("filename"),
         .line     = std::stoi(row.at("line")),
         .column   = std::stoi(row.at("column")), 
@@ -78,15 +79,15 @@ struct type_boundaries_mapper
 template <typename cursor_t>
 struct match_track
 {
-  cursor_t begin   ; 
-  cursor_t cursor  ;
-  cursor_t end     ; 
-  bool     matched ;
+  cursor_t    begin   ;
+  cursor_t    cursor  ;
+  cursor_t    end     ; 
+  bool        matched ;
 } ;
 
 template <typename cursor_t>
 auto build_track (
-  cursor_t const & begin ,
+  cursor_t const & begin , 
   cursor_t const & cursor, 
   cursor_t const & end   , 
   bool matched = true)
@@ -95,7 +96,7 @@ auto build_track (
     .begin   = begin   ,
     .cursor  = cursor  ,
     .end     = end     ,  
-    .matched = matched
+    .matched = matched  
   } ;
 }
 
@@ -115,8 +116,8 @@ auto is_not_end_and_equal_to (
   match_track<auto> const & track,
   std::string_view          type)
 {
-  auto const & matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
-  auto const & cursor  = matched ? std::next(track.cursor) : track.cursor ;
+  auto && matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
+  auto && cursor  = matched ? std::next(track.cursor) : track.cursor ;
   return build_track(track.begin, cursor, track.end, matched) ;
 }
 
@@ -275,7 +276,8 @@ auto create_token_query (
   ss << "select * from tkn_token as tk where tk.id between "
      << std::to_string(boundaries.begin) 
      << " and "
-     << std::to_string(boundaries.end) ;
+     << std::to_string(boundaries.end) 
+     << " order by tk.id;";
   return ss.str() ;
 }
 
@@ -328,31 +330,42 @@ auto prepare_type_for_insert (
 
 #include <algorithm>
 
-void on_type_error (
+void insert_type_detection_error (
+  sia::db::db_t             db,
   match_track<auto> const & track_in_error) 
 { 
   std::stringstream ss ;
-  auto begin = track_in_error.begin ;
-  auto end   = track_in_error.end   ;
-
-  while (begin != end)
-  {
-    ss << " " << (*begin).value ;
-    begin++ ;
-  }
-
-  auto line_size = 0u ;
-  std::for_each(
-    track_in_error.begin, track_in_error.end, 
-    [&line_size](auto const & tk) {
-      line_size += tk.value.size() ;
-    }) ;
-
-  // TODO: faire le decalage jusqu'à l'erreur
-
-
-  sia::log::error(std::string() + "une erreur est survenue lors de la detection de type : " + ss.str()) ;
+  ss << "insert into stx_type_error (expected_type, token_id) values (" 
+     << sia::quote((*track_in_error.cursor).type) << ", " 
+     << (*track_in_error.cursor).id << ");" ;
+  sia::db::ddl(db, ss.str()) ;
 }
+
+auto insert_type (
+  sia::db::db_t             db,
+  match_track<auto> const & track) 
+{
+  auto && type = build_type(track.begin, track.end) ;
+  auto && type_insert_query = prepare_type_for_insert(type) ;
+  return sia::db::ddl(db, type_insert_query) ;
+}
+
+auto insert_treated_tokens (
+  sia::db::db_t             db,
+  match_track<auto> const & track)
+{
+  auto && begin = track.begin ;
+  auto && end   = std::next(begin, std::distance(begin, track.end) - 1) ;
+  
+  std::stringstream ss ;
+  ss << " insert into tkn_treated_token_interval (begin_id, end_id) values ("
+     << (*begin).id << ", " << (*end).id << ");" ;
+  
+  std::cout << ss.str() << std::endl ;
+  return sia::db::ddl(db, ss.str()) ;
+}
+
+
 
 int main (int argc, char** argv) 
 {
@@ -383,19 +396,20 @@ int main (int argc, char** argv)
     {    
       auto && token_query = create_token_query(bounds) ;
       auto && tokens      = select(db, token_query, token_mapper()) ;
-      
+      auto && begin       = tokens.begin() ;
+      auto && end         = tokens.end() ;
+      auto && cursor      = tokens.begin() ;
       auto && type_decl_track = is_type_declaration(
-        build_track(tokens.begin(), tokens.begin(), tokens.end())) ;
+        build_track(begin, cursor, end));
       
       if (type_decl_track.matched) 
       {
-        auto && type = build_type(tokens.begin(), tokens.end()) ;
-        auto && type_insert_query = prepare_type_for_insert(type) ;
-        ddl(db, type_insert_query) ;
+        insert_type(db, type_decl_track) ;
+        insert_treated_tokens(db, type_decl_track) ;
       } 
       else
       {
-        on_type_error(type_decl_track) ;
+        insert_type_detection_error(db, type_decl_track) ;
       } 
     }
 

@@ -52,6 +52,15 @@ int main (int argc, char** argv)
       "	and tk2.\"type\" = 'rbracket'           "
       "	and tk2.id - tk1.id > 0                 "
       "	group by tk1.id;                        ") ;
+    drop_table(db, "stx_type_error") ;
+    create_table(db, "stx_type_error", 
+      column("id", "integer", "primary key"), 
+      column("expected_type", "text", "not null"), 
+      column("token_id", "integer", "not null")) ;
+    drop_table(db, "tkn_not_treated_token") ;
+    create_table(db, "tkn_treated_token_interval", 
+      column("begin_id", "integer", "not null"), 
+      column("end_id", "integer", "not null")) ;
     end_transaction(db) ;
     ddl(db, 
       "insert into                  "
@@ -61,5 +70,7 @@ int main (int argc, char** argv)
       "  ('byte', 0),               "
       "  ('long', 0);               ") ;
     close_database(db) ;
+    
+  
   }
 }

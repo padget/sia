@@ -1,6 +1,6 @@
 echo ' -- sqlite3.o'
 mkdir -p lib/obj
-# gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/Iinclude
+gcc  -c lib/include/sqlite3.c -o lib/obj/sqlite3.o -Ilib/Iinclude
 
 echo ' -- sia_configure_compiler.exe'
 

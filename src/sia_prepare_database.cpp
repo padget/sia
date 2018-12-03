@@ -34,6 +34,16 @@ int main (int argc, char** argv)
       column("id", "integer", "primary key"), 
       column("name", "text", "not null"), 
       column("nb_members", "integer", "not null")) ;
+    drop_table(db, "stx_function") ;
+    create_table(db, "stx_function", 
+      column("id", "integer", "primary key"), 
+      column("name", "text", "not null"), 
+      column("type", "text", "not null")) ;
+    drop_table(db, "stx_expression") ;
+    create_table(db, "stx_expression", 
+      column("id", "integer", "primary key"), 
+      column("value", "text", "not null"), 
+      column("parent", "integer", "not null")) ;
     ddl(db, 
       "drop view if exists stx_types_boundaries;"
       "create view if not exists                "

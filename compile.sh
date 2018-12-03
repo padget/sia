@@ -27,6 +27,11 @@ echo ' -- stx_detect_types.exe'
 g++ -std=c++2a -c src/stx_detect_types.cpp -o stx_detect_types.o -Ilib/include -Iinclude -fconcepts
 g++ -std=c++2a -o stx_detect_types.exe stx_detect_types.o lib/obj/sqlite3.o
 
+echo ' -- stx_detect_functions.exe'
+
+g++ -std=c++2a -c src/stx_detect_functions.cpp -o stx_detect_functions.o -Ilib/include -Iinclude -fconcepts
+g++ -std=c++2a -o stx_detect_functions.exe stx_detect_functions.o lib/obj/sqlite3.o
+
 echo ' -- clean *.o'
 
 rm -f *.o

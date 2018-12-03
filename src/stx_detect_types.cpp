@@ -358,7 +358,7 @@ auto insert_treated_tokens (
   match_track<auto> const & track)
 {
   auto && begin = track.begin ;
-  auto && end   = std::next(begin, std::distance(begin, track.end) - 1) ;
+  auto && end   = std::prev(track.end) ;
   
   std::stringstream ss ;
   ss << " insert into tkn_treated_token_interval (begin_id, end_id) values ("

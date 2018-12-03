@@ -52,8 +52,31 @@ int main (int argc, char** argv)
       "	and tk2.\"type\" = 'rbracket'           "
       "	and tk2.id - tk1.id > 0                 "
       "	group by tk1.id;                        ") ;
+     ddl(db, 
+      "drop view if exists stx_functions_boundaries;"
+      "create view if not exists                "
+      "stx_functions_boundaries                 "
+      "(\"begin\", \"end\", \"distance\")       " 
+      "as                                       "
+      "	select                                  "
+      "		tk1.id as \"begin\",                  "  
+      "		tk2.id as \"end\",                    "
+      "		min(tk2.id - tk1.id)                  "
+      "	from                                    "
+      "		tkn_token as tk1,                     " 
+      "		tkn_token as tk2                      "
+      "	where                                   "
+      "		tk1.\"type\" = 'fn'                   "
+      "	and tk2.\"type\" = 'rbrace'             "
+      "	and tk2.id - tk1.id > 0                 "
+      "	group by tk1.id;                        ") ;
     drop_table(db, "stx_type_error") ;
     create_table(db, "stx_type_error", 
+      column("id", "integer", "primary key"), 
+      column("expected_type", "text", "not null"), 
+      column("token_id", "integer", "not null")) ;
+    drop_table(db, "stx_function_error") ;
+    create_table(db, "stx_function_error", 
       column("id", "integer", "primary key"), 
       column("expected_type", "text", "not null"), 
       column("token_id", "integer", "not null")) ;

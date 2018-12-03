@@ -1,6 +1,6 @@
 export PATH=.:$PATH
-configure_compiler --config sia.properties
-prepare_database
-inject_file
-tokenize
-detect_types
+sia_onfigure_compiler --config sia.properties
+sia_prepare_database
+tkn_inject_file
+tkn_tokenize
+stx_detect_types

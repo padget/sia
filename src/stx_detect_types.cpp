@@ -119,6 +119,7 @@ auto is_not_end_and_equal_to (
 {
   auto && matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
   auto && cursor  = matched ? std::next(track.cursor) : track.cursor ;
+  
   return build_track(track.begin, cursor, track.end, matched) ;
 }
 
@@ -152,7 +153,7 @@ auto is_comma (
   return is_not_end_and_equal_to(track, "comma") ;
 }
 
-auto is_type_param(
+auto is_param (
   match_track<auto> const & track)
 {
   auto && name_tracked     = is_name(track)         ; 
@@ -162,28 +163,21 @@ auto is_type_param(
   return typename_tracked ;
 }
 
-auto is_type_param_list(
-  match_track<auto> const & track) 
+auto is_params (
+  match_track<auto> const & track)
+  -> std::decay_t<decltype(track)>
 {
-  auto result_track = track ;
-  auto current_track = track ;
-
-  while (current_track.matched && (current_track = is_type_param(current_track)).matched) 
-  {    
-    auto comma_track = current_track ;
+  if (!is_rbracket(track).matched) 
+  {
+    auto && arg_track   = is_param(track)       ;
+    auto && comma_track = is_comma(arg_track) ;
     
-    if (!(comma_track = is_comma(comma_track)).matched) 
-    { 
-      result_track = current_track ;
-      break ;
-    }
-    else 
-    {
-      current_track = comma_track ;
-    } 
+    return comma_track.matched ? is_params(comma_track) : arg_track ;
   }
-
-  return result_track ;
+  else 
+  {
+    return track ;
+  }
 }
 
 auto is_type (
@@ -198,7 +192,7 @@ auto is_type_declaration (
   auto && type_tracked     = is_type(track)                       ;
   auto && name_tracked     = is_name(type_tracked)                ;
   auto && lbracket_tracked = is_lbracket(name_tracked)            ;
-  auto && params_tracked   = is_type_param_list(lbracket_tracked) ;
+  auto && params_tracked   = is_params(lbracket_tracked) ;
   auto && rbracket_tracked = is_rbracket(params_tracked)          ;
   
   return rbracket_tracked ; 

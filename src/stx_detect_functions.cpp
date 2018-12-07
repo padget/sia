@@ -323,9 +323,9 @@ auto detect_functions (
 
   limit_t limit  = get_conf_ull("detect_function.chunk.size") ;
   limit_t offset = 0ull ;
-  limit_t count  = count(db, "stx_functions_boundaries") ;
+  limit_t cnt  = count(db, "stx_functions_boundaries") ;
 
-  while (offset < count)
+  while (offset < cnt)
   {
     begin_transaction(db) ;
     auto && fbounds = select_functions_boundaries(db, limit, offset) ; 

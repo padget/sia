@@ -3,6 +3,8 @@
 #include <map>
 #include <string_view> 
 
+using namespace sia::db ;
+
 namespace sia::type
 {
   struct type_member 
@@ -228,16 +230,16 @@ build_members (
 {
   using namespace sia::type ;
 
-  auto members = begin != end && (*begin).type == "name" ? 
+  auto && members = begin != end && (*begin).type == "name" ? 
     create_vector_of_type_member(build_member(begin, end)) : 
     create_vector_of_type_member() ;
 
-  auto member_end = std::next(begin, 3) ;
+  auto && member_end = std::next(begin, 3) ;
 
   if (member_end != end && (*member_end).type == "comma") 
   {
-    auto member_comma = std::next(member_end) ;
-    auto next_members = build_members(member_comma, end) ;
+    auto && member_comma = std::next(member_end) ;
+    auto && next_members = build_members(member_comma, end) ;
     std::move(
       next_members.begin(), 
       next_members.end(), 
@@ -361,6 +363,27 @@ auto insert_treated_tokens (
   return sia::db::ddl(db, ss.str()) ;
 }
 
+
+auto populate_stx_types_boundaries (
+  sia::db::db_t db)
+{
+  ddl(db, 
+      " insert into stx_types_boundaries (begin, end)"
+      "	select begin, end from (                  "
+      "   select                                  "
+      "		  tk1.id as \"begin\",                  "  
+      "		  tk2.id as \"end\",                    "
+      " 		min(tk2.id - tk1.id)                  "
+      " 	from                                    "
+      " 		tkn_token as tk1,                     " 
+      " 		tkn_token as tk2                      "
+      " 	where                                   "
+      " 		tk1.\"type\" = 'type'                 "
+      " 	and tk2.\"type\" = 'rbracket'           "
+      " 	and tk2.id - tk1.id > 0                 "
+      " 	group by tk1.id);                       ") ;
+}
+
 int main (int argc, char** argv) 
 {
   using namespace sia::db ;
@@ -377,6 +400,7 @@ int main (int argc, char** argv)
   } 
 
   const auto limit = sia::config::get_conf_ull("detect_type.chunk.size") ; 
+  populate_stx_types_boundaries(db) ;
   const auto offset_max = count(db, "stx_types_boundaries") ;
   auto offset = 0u ; 
    

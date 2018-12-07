@@ -8,6 +8,7 @@
 #  include <iostream>
 #  include <map>
 #  include <list> 
+#  include <chrono>
 
 namespace sia  
 {
@@ -264,8 +265,10 @@ namespace sia::db
 
   auto ddl (
     db_t db, 
-    std::string const & query) 
+    std::string const & query, 
+    bool print_time = false) 
   {
+    auto t1 = std::chrono::high_resolution_clock::now() ;
     auto nb_impacted_lines = 0u ;
     
     if (!is_db_open(db)) 
@@ -284,6 +287,10 @@ namespace sia::db
     
     log_on_error(rc != SQLITE_OK, error, query) ;
     sqlite3_free(error) ;
+    auto t2 = std::chrono::high_resolution_clock::now() ;
+    
+    if (print_time) 
+      sia::log::debug(std::string("query time duration : ") + std::to_string(std::chrono::duration_cast<std::chrono::seconds>(t2 - t1).count()) + " s" ) ;
     return nb_impacted_lines ;
   }
 
@@ -299,7 +306,7 @@ namespace sia::db
     db_t                db, 
     std::string const & table)
   {
-    auto count_query = std::string("select count(*) as c from ") + table ;
+    auto count_query = std::string("select count(ROWID) as c from ") + table ;
     return select(db, count_query, count_mapper()).front() ;
   }
 

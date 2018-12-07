@@ -453,6 +453,7 @@ int main (int argc, const char** argv)
   if (file.is_open() && is_db_open(db)) 
   {
     tokenize_file(filename, file, db) ;
+    ddl(db, "create index if not exists tkn_token_type_idx on tkn_token(type)") ;
     close_database(db) ;
     stop_of(argv[0]) ; 
     std::cout << std::endl ; 

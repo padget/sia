@@ -316,6 +316,26 @@ auto insert_function_detection_error(
   sia::db::ddl(db, ss.str()) ;
 }
 
+auto populate_stx_functions_boundaries (
+  db_t db)
+{
+  ddl(db, 
+      " insert into stx_functions_boundaries (begin, end)"
+      " select                                  "
+      "	  tk1.id as \"begin\",                  "  
+      "	  tk2.id as \"end\"                     "
+      " from                                    "
+      " 	tkn_token as tk1,                     " 
+      " 	tkn_token as tk2                      "
+      " where                                   "
+      " 	tk1.\"type\" = 'fn'                   "
+      " and tk2.\"type\" = 'rbrace'             "
+      " and tk2.id > tk1.id                     "
+      " group by tk1.id                         "
+      " having tk2.id = min(tk2.id)", true) ;
+}
+
+
 auto detect_functions (
   db_t db)
 {
@@ -324,7 +344,7 @@ auto detect_functions (
   limit_t limit  = get_conf_ull("detect_function.chunk.size") ;
   limit_t offset = 0ull ;
   limit_t cnt  = count(db, "stx_functions_boundaries") ;
-
+  
   while (offset < cnt)
   {
     begin_transaction(db) ;
@@ -333,7 +353,8 @@ auto detect_functions (
     for (auto const & fbound : fbounds)
     {
       auto && tokens = select_tokens_from_boundaries(db, fbound) ; 
-      auto && function_track = is_function(build_track(tokens.begin(), tokens.begin(), tokens.end())) ;
+      auto && function_track = is_function(
+          build_track(tokens.begin(), tokens.begin(), tokens.end())) ;
      
       if (function_track.matched)
       {
@@ -358,6 +379,8 @@ int main (int argc, char ** argv)
   sia::script::launching_of(argv[0]) ;
   
   auto db        = open_database("lol2.sia.db") ;
+  ddl(db, "pragma journal_mode = off") ;
+  populate_stx_functions_boundaries(db)         ;
   auto has_error = detect_functions(db)         ; 
   
   sia::script::stop_of(argv[0]) ;

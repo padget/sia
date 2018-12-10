@@ -283,11 +283,312 @@ auto select_tokens_from_boundaries (
   return select(db, create_token_query(fbound), token_mapper()) ;
 }
 
+auto next_token_until (
+  auto const & begin, 
+  auto const & end, 
+  auto && cond) 
+  -> std::decay_t<decltype(begin)>
+{
+  return begin != end && cond(*begin) ? begin : next_token_until(std::next(begin), end, cond) ;
+}
+
+#include <vector>
+
+struct function_arg 
+{
+  std::string value ;
+} ; 
+
+struct function_call
+{ 
+  std::string               alias ;
+  std::string               fname ;
+  std::vector<function_arg> args  ;
+} ;
+
+struct function_param
+{
+  std::string name ;
+  std::string type ;
+} ;
+
+struct function 
+{
+  std::string                 name   ;
+  std::string                 type   ;
+  std::vector<function_param> params ;  
+  std::vector<function_call>  body   ;
+} ;
+
+std::string build_fname (
+  auto const & begin, 
+  auto const & end) ;
+
+std::string build_alias (
+  auto const & begin, 
+  auto const & end) 
+{ 
+  // TODO implementer la génération dun alias unique.
+  return (*begin).value ;
+}
+
+std::vector<auto> concat_v (
+  std::vector<auto> const & firsts, 
+  std::vector<auto> const & nexts)
+{
+  // FIXME faire une collection permettant le move de manière fonctionnelle
+  std::decay_t<decltype(firsts)> res ;
+  res.reserve(firsts.size() + nexts.size()) ;
+  res.insert(res.end(), firsts.begin(), firsts.end()) ;
+  res.insert(res.end(), nexts.begin(), nexts.end()) ;
+  
+  return res ;
+}
+
+function_arg build_arg (
+  auto const & begin, 
+  auto const & end)
+{
+  return function_arg {
+    .value = (*begin).value
+  } ;
+}
+
+std::vector<function_arg> build_fargs (
+  auto const & begin, 
+  auto const & end) 
+{
+  using vec = std::vector<function_arg> ;
+
+  if ((*begin).type == "name") 
+  {
+    if ((*std::next(begin, 1)).type == "comma")
+    {
+      return concat_v(vec{build_arg(begin, end)}, build_fargs(std::next(begin, 2), end)) ;
+    }
+    else 
+    {
+      return {build_arg(begin, end)} ;
+    }
+  }
+  else 
+  {
+    return {} ;
+  }
+}
+
+std::vector<function_call> build_fbody (
+  auto const & begin,
+  auto const & end)
+{
+  auto && alias = build_alias(begin, end) ;
+  auto && fname = build_fname(begin, end) ;
+  auto && args  = build_fargs(begin, end) ;
+
+  return {
+    function_call {
+      .alias = alias ,
+      .fname = fname ,
+      .args  = args
+    }
+  } ;
+}
+
+function_param build_fparam (
+  auto const & begin, 
+  auto const & end)
+{
+  return function_param {
+    .name = (*begin).value, 
+    .type = (*std::next(begin, 2)).value
+  } ;
+}
+
+std::vector<function_param> build_fparams (
+  auto const & begin, 
+  auto const & end)
+{
+  using vec = std::vector<function_param> ;
+
+  if ((*begin).type == "name") 
+  {
+    if ((*std::next(begin, 3)).type == "comma")
+    {
+      return concat_v(vec{build_fparam(begin, end)}, build_fparams(std::next(begin, 4), end)) ;
+    }
+    else 
+    {
+      return {build_fparam(begin, end)} ;
+    }
+  }
+  else 
+  {
+    return {} ;
+  }
+}
+
+std::string build_ftype (
+  auto const & begin,
+  auto const & end)
+{
+  return (*begin).value ;
+}
+
+std::string build_fname (
+  auto const & begin, 
+  auto const & end) 
+{
+  return (*begin).value ;
+}
+
+bool until_is_rbracket (
+  sia::token::token const & tk) 
+{
+  return tk.type == "rbracket" ;
+}
+
+bool until_is_lbrace (
+  sia::token::token const & tk) 
+{
+  return tk.type == "lbrace" ;
+}
+
+function build_function (
+  auto const & begin, 
+  auto const & end) 
+
+  auto && fname  = build_fname(std::next(begin), end)   ;
+  auto && params = build_fparams(std::next(begin, 2), end) ;
+  auto && type   = build_ftype(std::next(next_token_until(begin, end, until_is_rbracket)), end)   ;
+  auto && body   = build_fbody(std::next(next_token_until(begin, end, until_is_lbrace)), end) ;
+  
+  return function {
+    .name   = fname  , 
+    .type   = type   ,
+    .params = params ,
+    .body   = body
+  } ;
+}
+
+std::string join (
+  auto const & collection,
+  auto const & mapper,
+  auto const & separator,
+  auto const & ... mapper_args)
+{
+  std::stringstream ss ;
+  auto const size  = collection.size() ;
+  auto       index = 0ull ;
+
+
+  for (auto const & item : collection)
+  {
+    ss << mapper(item, mapper_args...) ;
+
+    if (index < size - 1)
+      ss << separator ;
+
+    index++ ;
+  }
+
+  return ss.str() ;
+}
+
+std::string param_to_values (
+  function_param const & param, 
+  std::string const & parent_name) 
+{
+  std::stringstream ss ;
+  ss << "(" 
+     << sia::quote(param.name) << ", " 
+     << sia::quote(param.type) << ", " 
+     << sia::quote(parent_name) << ")" ;
+  
+  return ss.str() ;
+}
+
+std::string prepare_function_params_to_insert (
+  function const & f)
+{
+  std::stringstream ss ;
+  
+  if (!f.params.empty())
+  {
+    ss << "insert into stx_function_param (name, type, parent) values "
+       << join(f.params, &param_to_values, ",", f.name)
+       << ";\n" ;
+  }
+
+  return ss.str() ;
+}
+
+std::string function_call_to_values (
+  function_call const & fcall, 
+  std::string const &   parent_name) 
+{
+  std::stringstream ss ;
+  ss << "(" 
+     << sia::quote(fcall.alias) << ", " 
+     << sia::quote(fcall.fname) << ", " 
+     << sia::quote(parent_name) << ")" ;
+
+  return ss.str() ;
+}
+
+std::string function_call_arg_to_values (
+  function_arg const & arg, 
+  std::string const & parent_name) 
+{
+  std::stringstream ss ;
+  ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
+
+  return ss.str() ;
+}
+
+std::string prepare_function_body_to_insert (
+  function const & f)
+{
+  std::stringstream ss ;
+  
+  if (!f.body.empty()) 
+  {
+    ss << "insert into stx_function_call (alias, fname, parent) values "
+       << join(f.body, &function_call_to_values, ",", f.name) 
+       << ";\n" ;
+
+    for (auto const & fcall : f.body)
+    {
+      if (!fcall.args.empty()) 
+      {
+        ss << "insert into stx_function_arg (value, parent) values " ;
+        ss << join(fcall.args, &function_call_arg_to_values, ",", f.name) ;
+        ss << ";\n" ;
+      }
+    }
+  }
+
+  return ss.str() ;  
+}
+
+std::string prepare_function_to_insert (
+  function const & f)
+{
+  std::stringstream ss ;
+  ss << "insert into stx_function (name, type) values ("
+     << sia::quote(f.name) << ", " << sia::quote(f.type) << ");\n" 
+     << prepare_function_params_to_insert(f) 
+     << prepare_function_body_to_insert(f) ;
+
+  return ss.str() ;
+}
+
 auto insert_function (
   db_t db, 
   match_track<auto> const & track) 
 {
-  // TODO faire l'insertion dune fonction dans les tables stx_* 
+  auto && f          = build_function(track.begin, track.end) ;
+  auto && finsertion = prepare_function_to_insert(f) ;
+  return ddl(db, finsertion) ;
 }
 
 auto insert_treated_tokens (

@@ -1,11 +1,6 @@
 type add_result (res : int, a : int, b : int)
 type add_result_prout (b :int)
 type add_result_pr ()
-type add_result (res : int, a : int, b : int)
-type add_result_prout (b :int)
-type add_result_pr ()
-type add_result (res : int, a : int, b : int)
-type add_result_prout (b :int)
 
 fn add_compute (l : int, r : int) : int 
 {

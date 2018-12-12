@@ -166,7 +166,7 @@ auto is_rbrace (
   return is_not_end_and_equal_to(track, "rbrace") ;
 }
 
-auto is_number(
+auto is_number (
   match_track<auto> const & track)
 {
   return is_not_end_and_equal_to(track, "number") ;
@@ -197,13 +197,13 @@ auto is_args (
   }
 }
 
-auto is_point(
+auto is_point (
   match_track<auto> const & track)
 {
   return is_not_end_and_equal_to(track, "point") ;
 }
 
-auto is_function_call(
+auto is_function_call (
   match_track<auto> const & track)
 {
   auto && lbracket_track  = is_lbracket(track)           ;
@@ -328,8 +328,10 @@ std::string build_alias (
   auto const & begin, 
   auto const & end) 
 { 
+  static auto i = 0ull ;
+  std::string alias = std::string("@func") + std::to_string(i) ;
   // TODO implementer la génération dun alias unique.
-  return (*begin).value ;
+  return alias ;
 }
 
 std::vector<auto> concat_v (
@@ -377,14 +379,21 @@ std::vector<function_arg> build_fargs (
   }
 }
 
+bool until_is_rbracket (
+  sia::token::token const & tk) 
+{
+  return tk.type == "rbracket" ;
+}
+
 std::vector<function_call> build_fbody (
   auto const & begin,
   auto const & end)
 {
+  // TODO faire le body. 
   auto && alias = build_alias(begin, end) ;
-  auto && fname = build_fname(begin, end) ;
-  auto && args  = build_fargs(begin, end) ;
-
+  auto && args  = build_fargs(std::next(begin), end) ;
+  auto && fname = build_fname(std::next(next_token_until(begin, end, until_is_rbracket), 2), end) ;
+   
   return {
     function_call {
       .alias = alias ,
@@ -441,12 +450,6 @@ std::string build_fname (
   return (*begin).value ;
 }
 
-bool until_is_rbracket (
-  sia::token::token const & tk) 
-{
-  return tk.type == "rbracket" ;
-}
-
 bool until_is_lbrace (
   sia::token::token const & tk) 
 {
@@ -456,10 +459,10 @@ bool until_is_lbrace (
 function build_function (
   auto const & begin, 
   auto const & end) 
-
+{
   auto && fname  = build_fname(std::next(begin), end)   ;
   auto && params = build_fparams(std::next(begin, 2), end) ;
-  auto && type   = build_ftype(std::next(next_token_until(begin, end, until_is_rbracket)), end)   ;
+  auto && type   = build_ftype(std::next(next_token_until(begin, end, until_is_rbracket), 2), end)   ;
   auto && body   = build_fbody(std::next(next_token_until(begin, end, until_is_lbrace)), end) ;
   
   return function {
@@ -588,6 +591,9 @@ auto insert_function (
 {
   auto && f          = build_function(track.begin, track.end) ;
   auto && finsertion = prepare_function_to_insert(f) ;
+  
+  std::cout << finsertion << std::endl ; 
+  
   return ddl(db, finsertion) ;
 }
 

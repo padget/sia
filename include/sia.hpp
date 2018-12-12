@@ -9,6 +9,7 @@
 #  include <map>
 #  include <list> 
 #  include <chrono>
+#  include <type_traits>
 
 namespace sia  
 {
@@ -134,8 +135,7 @@ namespace sia::token
               const std::string& value, 
               std::string type) 
   {
-    return (token) 
-    {
+    return token { 
       .filename = filename,
       .line     = line, 
       .column   = column, 
@@ -340,9 +340,10 @@ namespace sia::db
     return ss.str() ;
   }
 
+  template<typename ... other_t>
   auto columns (
     auto const & column,
-    auto const & ... other) 
+    other_t const & ... other) 
   {
     std::stringstream ss ;
     ss << column ;

@@ -1,8 +1,26 @@
-type add_result (res : int, a : int, b : int)
-type add_result_prout (b :int)
-type add_result_pr ()
+type person (name: string, firstname: string, age: int, addr: address)
+type address (num: int, street: string, postal_code: string, country: string)
 
-fn add_compute (l : int, r : int) : int 
+fn create_person (
+  name: string, 
+  firstname: string,
+  age: int, 
+  addr: address) : person 
 {
-  (l, ().__cst()).__add()
+  alias __addr : (addr).address() 
+  alias p      : (name, firstname, age, __addr).person() 
+  p
+}
+
+case fn fibonacci(0: int): int { 0 }
+case fn fibonacci(1: int): int { 1 }
+
+fn fibonacci (n: int) : int
+{
+  alias n_minus_1     : (n, 1).minus()
+  alias n_minus_2     : (n, 2).minus()
+  alias fib_n_minus_1 : (n_minus_1).fibonacci()
+  alias fib_n_minus_2 : (n_minus_2).fibonacci()
+
+  (fib_n_minus_1, fib_n_minus_2).add()
 }

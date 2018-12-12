@@ -3,6 +3,8 @@
 
 using namespace sia::db ;
 
+using tokens_t = std::list<sia::token::token> ;
+using tokens_it_t = tokens_t::iterator ; 
 using limit_t = size_t ;
 
 struct function_boundaries 
@@ -31,90 +33,93 @@ auto select_functions_boundaries (
   return select(db, query, limit, offset, function_boundaries_mapper()) ;
 }
 
-template <typename cursor_t>
 struct match_track
 {
-  cursor_t begin   ; 
-  cursor_t cursor  ;
-  cursor_t end     ;
-  bool     matched ; 
+  tokens_it_t begin    ; 
+  tokens_it_t cursor   ;
+  tokens_it_t end      ;
+  bool        matched  ;
+  std::string expected ; 
 } ;
 
-template <typename cursor_t>
-auto build_track (
-  cursor_t const & begin , 
-  cursor_t const & cursor, 
-  cursor_t const & end   , 
-  bool matched = true)
+match_track build_mtrack (
+  tokens_it_t const & begin  , 
+  tokens_it_t const & cursor ,   
+  tokens_it_t const & end    , 
+  bool matched = true        , 
+  std::string const & expected = {})
 {
-  return match_track<cursor_t> {
-    .begin   = begin   ,
-    .cursor  = cursor  ,
-    .end     = end     ,  
-    .matched = matched  
+  return match_track {
+    .begin    = begin    ,
+    .cursor   = cursor   ,
+    .end      = end      ,  
+    .matched  = matched  ,
+    .expected = expected 
   } ;
 }
 
-auto is_not_end (
-  match_track<auto> const & track)
+bool is_not_end (
+  match_track const & track)
 {
   return track.cursor != track.end ;
 }
 
-auto is_of_type (
-  match_track<auto> const & track, 
-  std::string_view          type)
+bool is_of_type (
+  match_track const & track, 
+  std::string_view    type)
 {
   return (*track.cursor).type == type ;
 }
 
-auto is_not_end_and_equal_to (
-  match_track<auto> const & track,
-  std::string_view          type)
+match_track is_not_end_and_equal_to (
+  match_track const & track,
+  std::string_view    type)
 {
-  auto && matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
-  auto && cursor  = matched ? std::next(track.cursor) : track.cursor ;
-  return build_track(track.begin, cursor, track.end, matched) ;
+  auto && expected = track.matched ? std::string(type) : track.expected ;
+  auto && matched  = track.matched && is_not_end(track) && is_of_type(track, type) ;
+  auto && cursor   = matched ? std::next(track.cursor) : track.cursor ;
+
+  return build_mtrack(track.begin, cursor, track.end, matched, matched ? "" : expected) ;
 }
 
-auto is_fn (
-  match_track<auto> const & track)
+match_track is_fn (
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "fn") ;
 }
 
-auto is_name (
-  match_track<auto> const & track) 
+match_track is_name (
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "name") ;
 }
 
-auto is_lbracket (
-  match_track<auto> const & track)
+match_track is_lbracket (
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "lbracket") ;
 }
 
-auto is_rbracket (
-  match_track<auto> const & track) 
+match_track is_rbracket (
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "rbracket") ;
 }
 
-auto is_colon (
-  match_track<auto> const & track) 
+match_track is_colon (
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "colon") ;
 }
 
-auto is_comma (
-  match_track<auto> const & track) 
+match_track is_comma (
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "comma") ;
 }
 
-auto is_param (
-  match_track<auto> const & track)
+match_track is_param (
+  match_track const & track)
 {
   auto && name_tracked     = is_name(track)         ; 
   auto && colon_tracked    = is_colon(name_tracked) ;
@@ -123,9 +128,8 @@ auto is_param (
   return typename_tracked ;
 }
 
-auto is_params (
-  match_track<auto> const & track)
-  -> std::decay_t<decltype(track)>
+match_track is_params (
+  match_track const & track)
 {  
   if (!is_rbracket(track).matched) 
   {
@@ -140,8 +144,8 @@ auto is_params (
   }
 }
 
-auto is_signature ( 
-  match_track<auto> const & track)
+match_track is_signature ( 
+  match_track const & track)
 {
   auto && fn_track       = is_fn(track)              ; 
   auto && fname_track    = is_name(fn_track)         ;
@@ -154,35 +158,45 @@ auto is_signature (
   return name2_track ;
 }
 
-auto is_lbrace ( 
-  match_track<auto> const & track)
+match_track is_lbrace ( 
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "lbrace") ;
 }
 
-auto is_rbrace ( 
-  match_track<auto> const & track)
+match_track is_rbrace ( 
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "rbrace") ;
 }
 
-auto is_number(
-  match_track<auto> const & track)
+match_track is_number (
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "number") ;
 }
 
-auto is_expression(match_track<auto> const & track) -> std::decay_t<decltype(track)> ;
-
-auto is_arg (
-  match_track<auto> const & track)
+match_track is_one_of (
+  match_track const & track,
+  auto && is_first,
+  auto && ... is_nexts)
 {
-  return is_expression(track) ;
+  auto && first_track = is_first(track) ;
+
+  if constexpr (sizeof...(is_nexts) > 0)
+    return first_track.matched ? first_track : is_one_of(track, is_nexts...) ;
+  else 
+    return first_track ;   
+}
+
+match_track is_arg (
+  match_track const & track)
+{
+  return is_one_of(track, is_name, is_number) ;
 }  
 
-auto is_args (
-  match_track<auto> const & track)
-  -> std::decay_t<decltype(track)>
+match_track is_args (
+  match_track const & track)
 {
   if (!is_rbracket(track).matched) 
   {
@@ -197,14 +211,20 @@ auto is_args (
   }
 }
 
-auto is_point(
-  match_track<auto> const & track)
+match_track is_point (
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "point") ;
 }
 
-auto is_function_call(
-  match_track<auto> const & track)
+match_track is_alias (
+  match_track const & track)
+{
+  return is_not_end_and_equal_to(track, "alias") ;
+}
+
+match_track is_simple_function_call (
+  match_track const & track) 
 {
   auto && lbracket_track  = is_lbracket(track)           ;
   auto && args_track      = is_args(lbracket_track)      ;
@@ -213,33 +233,43 @@ auto is_function_call(
   auto && name_track      = is_name(point_track)         ; 
   auto && lbracket2_track = is_lbracket(name_track)      ;
   auto && rbracket2_track = is_rbracket(lbracket2_track) ;
-
+  
   return rbracket2_track ;
 }
 
-auto is_expression (
-  match_track<auto> const & track)
-  -> std::decay_t<decltype(track)> 
+match_track is_function_call (
+  match_track const & track)
 {
-  auto && name_track   = track.matched ? is_name(track) : track                        ;
-  auto && number_track = name_track.matched ? name_track : is_number(track)            ;
-  auto && fcall_track  = number_track.matched ? number_track : is_function_call(track) ;
-  
-  return fcall_track ;
+  auto && alias_track  = is_alias(track)                      ;
+  auto && alname_track = is_name(alias_track)                 ;
+  auto && colon_track  = is_colon(alname_track)               ; 
+  auto && sfcall_track = is_simple_function_call(colon_track) ;
+
+  return sfcall_track ;
 }
 
-auto is_fbody (
-  match_track<auto> const & track)
+match_track is_aliases (
+  match_track const & track)
 {
-  auto && lbrace_track = is_lbrace(track)            ;
-  auto && expr_track   = is_expression(lbrace_track) ;
-  auto && rbrace_track = is_rbrace(expr_track)       ; 
+  auto && fcall_track = is_function_call(track) ;
   
+  return fcall_track.matched ? is_aliases(fcall_track) : track ;
+}
+
+match_track is_fbody (
+  match_track const & track)
+{
+  auto && lbrace_track  = is_lbrace(track)         ;
+  auto && aliases_track = is_aliases(lbrace_track) ;
+  auto && sfcall_track  = is_one_of(aliases_track, 
+    is_simple_function_call, is_number, is_name)   ;
+  auto && rbrace_track  = is_rbrace(sfcall_track)  ;
+
   return rbrace_track ;
 }
 
-auto is_function (
-  match_track<auto> const & track)
+match_track is_function (
+  match_track const & track)
 {
   auto && signature_track = is_signature(track)       ;
   auto && fbody_track     = is_fbody(signature_track) ;
@@ -283,54 +313,7 @@ auto select_tokens_from_boundaries (
   return select(db, create_token_query(fbound), token_mapper()) ;
 }
 
-auto next_token_until (
-  auto const & begin, 
-  auto const & end, 
-  auto && cond) 
-  -> std::decay_t<decltype(begin)>
-{
-  return begin != end && cond(*begin) ? begin : next_token_until(std::next(begin), end, cond) ;
-}
-
 #include <vector>
-
-struct function_arg 
-{
-  std::string value ;
-} ; 
-
-struct function_call
-{ 
-  std::string               alias ;
-  std::string               fname ;
-  std::vector<function_arg> args  ;
-} ;
-
-struct function_param
-{
-  std::string name ;
-  std::string type ;
-} ;
-
-struct function 
-{
-  std::string                 name   ;
-  std::string                 type   ;
-  std::vector<function_param> params ;  
-  std::vector<function_call>  body   ;
-} ;
-
-std::string build_fname (
-  auto const & begin, 
-  auto const & end) ;
-
-std::string build_alias (
-  auto const & begin, 
-  auto const & end) 
-{ 
-  // TODO implementer la génération dun alias unique.
-  return (*begin).value ;
-}
 
 std::vector<auto> concat_v (
   std::vector<auto> const & firsts, 
@@ -345,255 +328,484 @@ std::vector<auto> concat_v (
   return res ;
 }
 
-function_arg build_arg (
-  auto const & begin, 
-  auto const & end)
+struct function_arg 
 {
-  return function_arg {
-    .value = (*begin).value
+  std::string value ;
+} ; 
+
+struct function_call
+{
+  std::string               name ;
+  std::vector<function_arg> args ;
+} ;
+
+struct aliased_function_call
+{ 
+  std::string   alias ;
+  function_call fcall ;
+} ;
+
+struct function_param
+{
+  std::string name ;
+  std::string type ;
+} ;
+
+#include <variant>
+
+struct function 
+{
+  std::string                        name    ;
+  std::string                        type    ;
+  std::vector<function_param>        params  ;  
+  std::vector<aliased_function_call> aliases ;
+  function_call                      result  ;
+} ;
+
+template <typename building_t>
+struct build_track
+{
+  building_t  built  ;
+  tokens_it_t cursor ;
+} ;
+
+template <typename building_t>
+build_track<building_t> build_btrack (
+  building_t const & b, 
+  tokens_it_t const & cursor)
+{
+  return build_track<building_t> {
+    .built  = b , 
+    .cursor = cursor  
   } ;
 }
 
-std::vector<function_arg> build_fargs (
+auto jump_one (
+  auto const & cursor) 
+{
+  return std::next(cursor) ;
+}
+
+auto jump_over (
+  auto const & cursor,
+  auto const & type, 
+  auto const & ... types)
+{
+  auto && cursor_type = (*cursor).type ;
+  
+  if (cursor_type  == type)
+  {
+    auto && jumped_cursor = jump_one(cursor) ;
+    
+    if constexpr (sizeof...(types) > 0)
+    {
+      return jump_over(jumped_cursor, types...) ;
+    }
+    else
+    {
+      return jumped_cursor ;
+    }
+  }
+  else
+  {
+    sia::log::warn(std::string("je ne peux pas jumper car j'ai ") + cursor_type + " au lieu de " + type);
+    return cursor ;
+  }
+}
+
+build_track<std::string> build_name (
   auto const & begin, 
   auto const & end) 
 {
-  using vec = std::vector<function_arg> ;
+  auto && name   = (*begin).value           ;
+  auto && cursor = jump_over(begin, "name") ;
 
-  if ((*begin).type == "name") 
+  return build_btrack(name, cursor) ;
+}
+
+build_track<std::string> build_alias (
+  auto const & begin, 
+  auto const & end) 
+{
+  auto && alias  = (*begin).value            ;
+  auto && cursor = jump_over(begin, "name") ;
+
+  return build_btrack(alias, cursor) ;
+}
+
+
+build_track<std::string> build_type (
+  auto const & begin,
+  auto const & end)
+{  
+  auto && type   = (*begin).value           ;
+  auto && cursor = jump_over(begin, "name") ;
+
+  return build_btrack(type, cursor) ;
+}
+
+build_track<function_arg> build_arg (
+  auto const & begin, 
+  auto const & end)
+{
+  auto && arg    = function_arg {(*begin).value} ;
+  auto && cursor = jump_one(begin)               ; 
+
+  return build_btrack(arg, cursor) ;
+}
+
+bool has_again_arg_to_build (
+  auto const & begin, 
+  auto const & end)
+{
+  auto && type = (*begin).type ;
+
+  return type == "name" || type == "number" ;
+}
+
+using function_args_t = std::vector<function_arg> ;
+
+build_track<function_args_t> build_args (
+  auto const & begin, 
+  auto const & end) 
+{
+  auto && jumped_comma = jump_over(begin, "comma") ;
+  if (has_again_arg_to_build(jumped_comma, end)) 
   {
-    if ((*std::next(begin, 1)).type == "comma")
-    {
-      return concat_v(vec{build_arg(begin, end)}, build_fargs(std::next(begin, 2), end)) ;
-    }
-    else 
-    {
-      return {build_arg(begin, end)} ;
-    }
+    auto && arg_track       = build_arg(jumped_comma, end)                 ; 
+    auto && args            = function_args_t{arg_track.built}      ;
+    auto && next_arg_cursor = jump_one(arg_track.cursor)            ;
+    auto && next_args_track = build_args(next_arg_cursor, end)      ;
+    auto && all_args        = concat_v(args, next_args_track.built) ;
+    
+    return build_btrack(all_args, next_args_track.cursor) ;
   }
   else 
   {
-    return {} ;
+    return build_btrack(function_args_t{}, begin) ;
   }
 }
 
-std::vector<function_call> build_fbody (
+build_track<function_call> build_function_call (
+  auto const & begin, 
+  auto const & end)
+{
+  auto && jumped_lbracket  = jump_over(begin, "lbracket")                         ;
+  auto && args_track       = build_args(jumped_lbracket, end)                     ;
+  auto && jumped_rbracket  = jump_over(args_track.cursor, "rbracket")             ;
+  std::cout << "wesh 31" << std::endl; 
+  auto && jumped_point     = jump_over(jumped_rbracket, "point")                  ;
+  auto && name_track       = build_name(jumped_point, end)                        ;
+  std::cout << "wesh 30" << std::endl; 
+  auto && jumped_lrbracket = jump_over(name_track.cursor, "lbracket", "rbracket") ;
+  auto && fcall            = function_call {
+    .name = name_track.built , 
+    .args = args_track.built
+  } ;
+
+  std::cout << "wesh25" << std::endl ; 
+  return build_btrack(fcall, jumped_lrbracket) ;
+}
+
+bool has_again_alias_to_build (
+  auto const & begin, 
+  auto const & end)
+{
+  return (*begin).type == "alias" ;
+}
+
+using aliases_fcall_t = std::vector<aliased_function_call> ; 
+
+build_track<aliases_fcall_t> build_aliases (
   auto const & begin,
   auto const & end)
-{
-  auto && alias = build_alias(begin, end) ;
-  auto && fname = build_fname(begin, end) ;
-  auto && args  = build_fargs(begin, end) ;
-
-  return {
-    function_call {
-      .alias = alias ,
-      .fname = fname ,
-      .args  = args
-    }
-  } ;
-}
-
-function_param build_fparam (
-  auto const & begin, 
-  auto const & end)
-{
-  return function_param {
-    .name = (*begin).value, 
-    .type = (*std::next(begin, 2)).value
-  } ;
-}
-
-std::vector<function_param> build_fparams (
-  auto const & begin, 
-  auto const & end)
-{
-  using vec = std::vector<function_param> ;
-
-  if ((*begin).type == "name") 
+{ 
+  if (has_again_alias_to_build(begin, end)) 
   {
-    if ((*std::next(begin, 3)).type == "comma")
-    {
-      return concat_v(vec{build_fparam(begin, end)}, build_fparams(std::next(begin, 4), end)) ;
-    }
-    else 
-    {
-      return {build_fparam(begin, end)} ;
-    }
+    auto && jumped_alias  = jump_over(begin, "alias")              ;
+    auto && alias_track   = build_alias(jumped_alias, end)         ;
+    auto && jumped_colon  = jump_over(alias_track.cursor, "colon") ;
+    auto && fcall_track   = build_function_call(jumped_colon, end) ;
+    auto && aliased_fcall = aliased_function_call {
+      .alias = alias_track.built , 
+      .fcall = fcall_track.built
+    } ;
+    auto && alfcalls            = aliases_fcall_t{aliased_fcall}         ;
+    auto && next_alfcalls_track = build_aliases(fcall_track.cursor, end) ;
+    auto && all_alfcalls = concat_v(alfcalls, next_alfcalls_track.built) ;
+    
+    return build_btrack(all_alfcalls, next_alfcalls_track.cursor) ;
+  }
+  else
+  {
+    return build_btrack(aliases_fcall_t{}, begin) ;
+  }  
+}
+
+build_track<function_param> build_param (
+  auto const & begin, 
+  auto const & end)
+{
+  auto && name_track   = build_name(begin, end)                ;
+  auto && jumped_colon = jump_over(name_track.cursor, "colon") ;
+  auto && type_track   = build_type(jumped_colon, end)         ;
+  auto && param        = function_param {
+    .name = name_track.built , 
+    .type = type_track.built
+  } ;
+
+  return build_btrack(param, type_track.cursor) ;
+}
+
+bool has_again_param_to_build(
+  auto const & begin, 
+  auto const & end)
+{
+  auto && type = (*begin).type ;
+
+  return type == "name" || type == "number" ;
+}
+
+using function_params_t = std::vector<function_param> ;
+
+build_track<function_params_t> build_params (
+  auto const & begin, 
+  auto const & end)
+{
+  auto && jumped_comma = jump_over(begin, "comma") ;
+
+  if (has_again_param_to_build(jumped_comma, end)) 
+  { 
+    auto && param_track       = build_param(jumped_comma, end)                   ; 
+    auto && params            = function_params_t{param_track.built}      ;
+    auto && next_params_track = build_params(param_track.cursor, end)     ;
+    auto && all_params        = concat_v(params, next_params_track.built) ;
+    
+    return build_btrack(all_params, next_params_track.cursor) ;
   }
   else 
   {
-    return {} ;
+    return build_btrack(function_params_t{}, begin) ;
   }
 }
 
-std::string build_ftype (
-  auto const & begin,
+build_track<function_call> build_result (
+  auto const & begin, 
   auto const & end)
 {
-  return (*begin).value ;
+  return build_function_call(begin, end) ;
 }
 
-std::string build_fname (
+build_track<function> build_function (
   auto const & begin, 
   auto const & end) 
 {
-  return (*begin).value ;
-}
-
-bool until_is_rbracket (
-  sia::token::token const & tk) 
-{
-  return tk.type == "rbracket" ;
-}
-
-bool until_is_lbrace (
-  sia::token::token const & tk) 
-{
-  return tk.type == "lbrace" ;
-}
-
-function build_function (
-  auto const & begin, 
-  auto const & end) 
-
-  auto && fname  = build_fname(std::next(begin), end)   ;
-  auto && params = build_fparams(std::next(begin, 2), end) ;
-  auto && type   = build_ftype(std::next(next_token_until(begin, end, until_is_rbracket)), end)   ;
-  auto && body   = build_fbody(std::next(next_token_until(begin, end, until_is_lbrace)), end) ;
-  
-  return function {
-    .name   = fname  , 
-    .type   = type   ,
-    .params = params ,
-    .body   = body
+  auto && jumped_fn       = jump_over(begin, "fn")                     ;
+  auto && name_track      = build_name(jumped_fn, end)                 ;
+  auto && jumped_lbracket = jump_over(name_track.cursor, "lbracket")   ;
+  auto && params_track    = build_params(jumped_lbracket, end)         ;
+  auto && jumped_rbracket = jump_over(params_track.cursor, "rbracket") ;
+  auto && jumped_colon    = jump_over(jumped_rbracket, "colon")        ;
+  auto && type_track      = build_type(jumped_colon, end)              ;
+  auto && jumped_lbrace   = jump_over(type_track.cursor, "lbrace")     ;
+  std::cout << "wesh" << std::endl ;
+  auto && aliases_track   = build_aliases(jumped_lbrace, end)          ;
+  std::cout << "wesh 2" << std::endl ; 
+  auto && result_track    = build_result(aliases_track.cursor, end)    ;
+// auto && jumped_rbrace   = jump_over(result_track.cursor, "rbrace")   ;
+  auto && func            = function {
+    .name    = name_track.built    , 
+    .type    = type_track.built    ,
+    .params  = params_track.built  ,
+    .aliases = aliases_track.built ,
+    .result  = result_track.built  
   } ;
+  
+  return build_btrack(func, end) ;
 }
 
-std::string join (
-  auto const & collection,
-  auto const & mapper,
-  auto const & separator,
-  auto const & ... mapper_args)
+// std::string join (
+//   auto const & collection,
+//   auto const & mapper,
+//   auto const & separator,
+//   auto const & ... mapper_args)
+// {
+//   std::stringstream ss ;
+//   auto const size  = collection.size() ;
+//   auto       index = 0ull ;
+
+
+//   for (auto const & item : collection)
+//   {
+//     ss << mapper(item, mapper_args...) ;
+
+//     if (index < size - 1)
+//       ss << separator ;
+
+//     index++ ;
+//   }
+
+//   return ss.str() ;
+// }
+
+// std::string param_to_values (
+//   function_param const & param, 
+//   std::string const & parent_name) 
+// {
+//   std::stringstream ss ;
+//   ss << "(" 
+//      << sia::quote(param.name) << ", " 
+//      << sia::quote(param.type) << ", " 
+//      << sia::quote(parent_name) << ")" ;
+  
+//   return ss.str() ;
+// }
+
+// std::string prepare_function_params_to_insert (
+//   function const & f)
+// {
+//   std::stringstream ss ;
+  
+//   if (!f.params.empty())
+//   {
+//     ss << "insert into stx_function_param (name, type, parent) values "
+//        << join(f.params, &param_to_values, ",", f.name)
+//        << ";\n" ;
+//   }
+
+//   return ss.str() ;
+// }
+
+// std::string function_call_to_values (
+//   function_call const & fcall, 
+//   std::string const &   parent_name) 
+// {
+//   std::stringstream ss ;
+//   ss << "(" 
+//      << sia::quote(fcall.alias) << ", " 
+//      << sia::quote(fcall.fname) << ", " 
+//      << sia::quote(parent_name) << ")" ;
+
+//   return ss.str() ;
+// }
+
+// std::string function_call_arg_to_values (
+//   function_arg const & arg, 
+//   std::string const & parent_name) 
+// {
+//   std::stringstream ss ;
+//   ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
+
+//   return ss.str() ;
+// }
+
+// std::string prepare_function_body_to_insert (
+//   function const & f)
+// {
+//   std::stringstream ss ;
+  
+//   if (!f.body.empty()) 
+//   {
+//     ss << "insert into stx_function_call (alias, fname, parent) values "
+//        << join(f.body, &function_call_to_values, ",", f.name) 
+//        << ";\n" ;
+
+//     for (auto const & fcall : f.body)
+//     {
+//       if (!fcall.args.empty()) 
+//       {
+//         ss << "insert into stx_function_arg (value, parent) values " ;
+//         ss << join(fcall.args, &function_call_arg_to_values, ",", f.name) ;
+//         ss << ";\n" ;
+//       }
+//     }
+//   }
+
+//   return ss.str() ;  
+// }
+
+// std::string prepare_function_to_insert (
+//   function const & f)
+// {
+//   std::stringstream ss ;
+//   ss << "insert into stx_function (name, type) values ("
+//      << sia::quote(f.name) << ", " << sia::quote(f.type) << ");\n" 
+//      << prepare_function_params_to_insert(f) 
+//      << prepare_function_body_to_insert(f) ;
+
+//   return ss.str() ;
+// }
+
+std::string to_string(std::vector<function_param>  const & params) 
 {
   std::stringstream ss ;
-  auto const size  = collection.size() ;
-  auto       index = 0ull ;
-
-
-  for (auto const & item : collection)
+  
+  for (auto const & param : params)
   {
-    ss << mapper(item, mapper_args...) ;
-
-    if (index < size - 1)
-      ss << separator ;
-
-    index++ ;
+    ss << " (" 
+       << param.name << " - " << param.type
+       << ") " ;
   }
 
   return ss.str() ;
 }
 
-std::string param_to_values (
-  function_param const & param, 
-  std::string const & parent_name) 
+std::string to_string(function_call const & fcall)
 {
   std::stringstream ss ;
-  ss << "(" 
-     << sia::quote(param.name) << ", " 
-     << sia::quote(param.type) << ", " 
-     << sia::quote(parent_name) << ")" ;
+  ss << "( " ;
   
+  for (auto const & arg : fcall.args)
+  {
+    ss << arg.value << " " ;
+  }
+
+  ss << ")." << fcall.name << "()" ;
+
   return ss.str() ;
 }
 
-std::string prepare_function_params_to_insert (
-  function const & f)
+std::string to_string(std::vector<aliased_function_call> const & aliases)
 {
   std::stringstream ss ;
   
-  if (!f.params.empty())
+  for (auto const & alias : aliases)
   {
-    ss << "insert into stx_function_param (name, type, parent) values "
-       << join(f.params, &param_to_values, ",", f.name)
-       << ";\n" ;
+    ss << "@" << alias.alias << " : " << to_string(alias.fcall) << "\n" ;
   }
 
   return ss.str() ;
 }
 
-std::string function_call_to_values (
-  function_call const & fcall, 
-  std::string const &   parent_name) 
+std::string to_string(function const & f)
 {
   std::stringstream ss ;
-  ss << "(" 
-     << sia::quote(fcall.alias) << ", " 
-     << sia::quote(fcall.fname) << ", " 
-     << sia::quote(parent_name) << ")" ;
-
+  ss << "name : " << f.name << "\n" 
+     << "type : " << f.type << "\n"
+     << "params : " << to_string(f.params) << "\n" 
+     << "aliases : " << to_string(f.aliases) << "\n" 
+     << "result : " << to_string(f.result) << "\n" ;
   return ss.str() ;
 }
 
-std::string function_call_arg_to_values (
-  function_arg const & arg, 
-  std::string const & parent_name) 
-{
-  std::stringstream ss ;
-  ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
-
-  return ss.str() ;
-}
-
-std::string prepare_function_body_to_insert (
-  function const & f)
-{
-  std::stringstream ss ;
-  
-  if (!f.body.empty()) 
-  {
-    ss << "insert into stx_function_call (alias, fname, parent) values "
-       << join(f.body, &function_call_to_values, ",", f.name) 
-       << ";\n" ;
-
-    for (auto const & fcall : f.body)
-    {
-      if (!fcall.args.empty()) 
-      {
-        ss << "insert into stx_function_arg (value, parent) values " ;
-        ss << join(fcall.args, &function_call_arg_to_values, ",", f.name) ;
-        ss << ";\n" ;
-      }
-    }
-  }
-
-  return ss.str() ;  
-}
-
-std::string prepare_function_to_insert (
-  function const & f)
-{
-  std::stringstream ss ;
-  ss << "insert into stx_function (name, type) values ("
-     << sia::quote(f.name) << ", " << sia::quote(f.type) << ");\n" 
-     << prepare_function_params_to_insert(f) 
-     << prepare_function_body_to_insert(f) ;
-
-  return ss.str() ;
-}
+#include <algorithm>
 
 auto insert_function (
   db_t db, 
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
-  auto && f          = build_function(track.begin, track.end) ;
-  auto && finsertion = prepare_function_to_insert(f) ;
-  return ddl(db, finsertion) ;
+  auto && fn_track = build_function(track.begin, track.end) ;
+   std::cout << to_string(fn_track.built) ; 
+  // auto && finsertion = prepare_function_to_insert(f) ;
+  
+  // std::cout << finsertion << std::endl ; 
+  
+  // return ddl(db, finsertion) ;
 }
 
 auto insert_treated_tokens (
   sia::db::db_t             db,
-  match_track<auto> const & track)
+  match_track const & track)
 {
   auto && begin = track.begin ;
   auto && end   = std::prev(track.end) ;
@@ -608,7 +820,7 @@ auto insert_treated_tokens (
 
 auto insert_function_detection_error(
   db_t db, 
-  match_track<auto> const & track)
+  match_track const & track)
 {
   std::stringstream ss ;
   ss << "insert into stx_function_error (expected_type, token_id) values (" 
@@ -655,15 +867,17 @@ auto detect_functions (
     {
       auto && tokens = select_tokens_from_boundaries(db, fbound) ; 
       auto && function_track = is_function(
-          build_track(tokens.begin(), tokens.begin(), tokens.end())) ;
+        build_mtrack(tokens.begin(), tokens.begin(), tokens.end())) ;
      
       if (function_track.matched)
       {
+        sia::log::info("une fonction a été détectée") ;
         insert_function(db, function_track) ;
         insert_treated_tokens(db, function_track) ;
       }
       else 
       {
+        sia::log::error("aucune fonction detectée") ;
         insert_function_detection_error(db, function_track) ;
       }
     }

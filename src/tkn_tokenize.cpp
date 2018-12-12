@@ -29,7 +29,9 @@ namespace sia::token
   } ;
 
   template <typename cursor_t>
-  auto result (cursor_t cursor, std::string const & tp) 
+  auto result (
+    cursor_t cursor, 
+    std::string const & tp) 
   {
     return match_result<cursor_t> {cursor, tp} ;
   } 
@@ -40,12 +42,20 @@ namespace sia::token
   {
     auto cursor = begin ;
 
-    while (cursor != end && (
-      between('a', *cursor, 'z') || 
+    if (between('a', *cursor, 'z') || 
       between('A', *cursor, 'Z') || 
-      equal('_', *cursor))) 
+      equal('_', *cursor)) 
     {
-      cursor = std::next(cursor);
+      cursor = std::next(cursor) ;
+
+      while (cursor != end && (
+        between('a', *cursor, 'z') || 
+        between('A', *cursor, 'Z') || 
+        between('0', *cursor, '9') ||
+        equal('_', *cursor))) 
+      {
+        cursor = std::next(cursor);
+      }
     }
 
     return result(cursor, "name") ; // Replace by string
@@ -279,8 +289,6 @@ namespace sia::token
 /// DATABASE OPERATIONS ///
 /// /////////////////// ///
 
-
-
 #include <map>
 #include <functional>
 #include <list>
@@ -366,8 +374,9 @@ namespace sia::db
   auto update_tokens_for_keywords (db_t db) 
   {
     return ddl(db, 
-      "update tkn_token set type='fn' where value = 'fn' ;    "
-      "update tkn_token set type='type' where value = 'type' ;") ;
+      "update tkn_token set type='fn'    where value = 'fn'    ; "
+      "update tkn_token set type='type'  where value = 'type'  ; "
+      "update tkn_token set type='alias' where value = 'alias' ; ") ;
   }
 
   struct file_line 

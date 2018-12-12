@@ -46,7 +46,7 @@ int main (int argc, char** argv)
       column("type", "text", "not null")) ;
     
     drop_table(db, "stx_function_param") ;
-    create_table(db, "stx_function_para", 
+    create_table(db, "stx_function_param", 
       column("id", "integer", "primary key"), 
       column("name", "text", "not null"), 
       column("type", "text", "not null"), 

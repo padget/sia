@@ -13,15 +13,19 @@ build:
     - compile.sh
   artifacts:
     paths:
-      - mybinary
-      - *
+      - sia_configure_compiler
+      - sia_prepare_database
+      - tkn_inject_file
+      - tkn_tokenize
+      - stx_detect_types
+      - stx_detect_functions
   # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
   # cache:
   #   paths:
   #     - "*.o"
 
 # run tests using the binary built before
-test:
-  stage: test
-  script:
-    - ./runmytests.sh
+# test:
+#   stage: test
+#   script:
+#     - ./runmytests.sh

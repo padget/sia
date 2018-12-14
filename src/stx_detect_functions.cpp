@@ -493,17 +493,15 @@ build_track<function_call> build_function_call (
   auto && jumped_lbracket  = jump_over(begin, "lbracket")                         ;
   auto && args_track       = build_args(jumped_lbracket, end)                     ;
   auto && jumped_rbracket  = jump_over(args_track.cursor, "rbracket")             ;
-  std::cout << "wesh 31" << std::endl; 
   auto && jumped_point     = jump_over(jumped_rbracket, "point")                  ;
   auto && name_track       = build_name(jumped_point, end)                        ;
-  std::cout << "wesh 30" << std::endl; 
   auto && jumped_lrbracket = jump_over(name_track.cursor, "lbracket", "rbracket") ;
   auto && fcall            = function_call {
     .name = name_track.built , 
     .args = args_track.built
   } ;
 
-  std::cout << "wesh25" << std::endl ; 
+
   return build_btrack(fcall, jumped_lrbracket) ;
 }
 
@@ -608,9 +606,9 @@ build_track<function> build_function (
   auto && jumped_colon    = jump_over(jumped_rbracket, "colon")        ;
   auto && type_track      = build_type(jumped_colon, end)              ;
   auto && jumped_lbrace   = jump_over(type_track.cursor, "lbrace")     ;
-  std::cout << "wesh" << std::endl ;
+
   auto && aliases_track   = build_aliases(jumped_lbrace, end)          ;
-  std::cout << "wesh 2" << std::endl ; 
+
   auto && result_track    = build_result(aliases_track.cursor, end)    ;
 // auto && jumped_rbrace   = jump_over(result_track.cursor, "rbrace")   ;
   auto && func            = function {
@@ -624,117 +622,111 @@ build_track<function> build_function (
   return build_btrack(func, end) ;
 }
 
-// std::string join (
-//   auto const & collection,
-//   auto const & mapper,
-//   auto const & separator,
-//   auto const & ... mapper_args)
-// {
-//   std::stringstream ss ;
-//   auto const size  = collection.size() ;
-//   auto       index = 0ull ;
+std::string join (
+  auto const & collection,
+  auto const & mapper,
+  auto const & separator,
+  auto const & ... mapper_args)
+{
+  std::stringstream ss ;
+  auto const size  = collection.size() ;
+  auto       index = 0ull ;
 
 
-//   for (auto const & item : collection)
-//   {
-//     ss << mapper(item, mapper_args...) ;
+  for (auto const & item : collection)
+  {
+    ss << mapper(item, mapper_args...) ;
 
-//     if (index < size - 1)
-//       ss << separator ;
+    if (index < size - 1)
+      ss << separator ;
 
-//     index++ ;
-//   }
+    index++ ;
+  }
 
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
-// std::string param_to_values (
-//   function_param const & param, 
-//   std::string const & parent_name) 
-// {
-//   std::stringstream ss ;
-//   ss << "(" 
-//      << sia::quote(param.name) << ", " 
-//      << sia::quote(param.type) << ", " 
-//      << sia::quote(parent_name) << ")" ;
+std::string prepare_function_param (
+  function_param const & param, 
+  std::string const & fname)
+{
+  std::stringstream ss ;
+  ss << " insert into stx_function_param " 
+        " (name, type, parent) values ( " 
+     << sia::quote(param.name) << ", " 
+     << sia::quote(param.type) << ", " 
+     << sia::quote(fname)      << ")" ;
   
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
-// std::string prepare_function_params_to_insert (
-//   function const & f)
-// {
-//   std::stringstream ss ;
+std::string prepare_function_params (
+  auto const & begin, 
+  auto const & end, 
+  auto const & fname)
+{ 
+  std::stringstream ss ;
   
-//   if (!f.params.empty())
-//   {
-//     ss << "insert into stx_function_param (name, type, parent) values "
-//        << join(f.params, &param_to_values, ",", f.name)
-//        << ";\n" ;
-//   }
+  if (begin != end)
+  {
+    auto && param = *begin                           ;
+    ss << prepare_function_param(param, fname)                 ;
+    ss << prepare_function_params(jump_one(begin), end, fname) ;
+  }
 
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
-// std::string function_call_to_values (
-//   function_call const & fcall, 
-//   std::string const &   parent_name) 
-// {
-//   std::stringstream ss ;
-//   ss << "(" 
-//      << sia::quote(fcall.alias) << ", " 
-//      << sia::quote(fcall.fname) << ", " 
-//      << sia::quote(parent_name) << ")" ;
+std::string function_call_to_values (
+  function_call const & fcall, 
+  std::string const &   parent_name) 
+{
+  std::stringstream ss ;
+  ss << "(" ;
 
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
-// std::string function_call_arg_to_values (
-//   function_arg const & arg, 
-//   std::string const & parent_name) 
-// {
-//   std::stringstream ss ;
-//   ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
+std::string function_call_arg_to_values (
+  function_arg const & arg, 
+  std::string const & parent_name) 
+{
+  std::stringstream ss ;
+  ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
 
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
-// std::string prepare_function_body_to_insert (
-//   function const & f)
-// {
-//   std::stringstream ss ;
+std::string prepare_function_body_to_insert (
+  function const & f)
+{
+  std::stringstream ss ;  
+
+  return ss.str() ;  
+}
+
+std::string prepare_function_signature (
+  function const & fn)
+{
+  std::stringstream ss ;
+  ss << " insert into stx_function " 
+        " (name, type) values ( "
+     << sia::quote(fn.name) << ", "
+     << sia::quote(fn.type) << ");\n" ;
   
-//   if (!f.body.empty()) 
-//   {
-//     ss << "insert into stx_function_call (alias, fname, parent) values "
-//        << join(f.body, &function_call_to_values, ",", f.name) 
-//        << ";\n" ;
+  return ss.str() ;
+}
 
-//     for (auto const & fcall : f.body)
-//     {
-//       if (!fcall.args.empty()) 
-//       {
-//         ss << "insert into stx_function_arg (value, parent) values " ;
-//         ss << join(fcall.args, &function_call_arg_to_values, ",", f.name) ;
-//         ss << ";\n" ;
-//       }
-//     }
-//   }
+std::string prepare_function_to_insert (
+  function const & fn)
+{
+  std::stringstream ss ;
+  ss << prepare_function_signature(fn) 
+     << prepare_function_params(fn.params.begin(), fn.params.end(), fn.name) 
+     << prepare_function_body_to_insert(fn) ;
 
-//   return ss.str() ;  
-// }
-
-// std::string prepare_function_to_insert (
-//   function const & f)
-// {
-//   std::stringstream ss ;
-//   ss << "insert into stx_function (name, type) values ("
-//      << sia::quote(f.name) << ", " << sia::quote(f.type) << ");\n" 
-//      << prepare_function_params_to_insert(f) 
-//      << prepare_function_body_to_insert(f) ;
-
-//   return ss.str() ;
-// }
+  return ss.str() ;
+}
 
 std::string to_string(std::vector<function_param>  const & params) 
 {
@@ -795,10 +787,9 @@ auto insert_function (
   match_track const & track) 
 {
   auto && fn_track = build_function(track.begin, track.end) ;
-   std::cout << to_string(fn_track.built) ; 
-  // auto && finsertion = prepare_function_to_insert(f) ;
-  
-  // std::cout << finsertion << std::endl ; 
+  auto && finsertion = prepare_function_to_insert(fn_track.built) ;
+  sia::log::info(finsertion) ;  
+
   
   // return ddl(db, finsertion) ;
 }

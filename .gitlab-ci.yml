@@ -21,7 +21,6 @@ build:
     - ../sqlite/configure      ;#  Run the configure script
     - make                     ;#  Run the makefile.
     - make sqlite3.c           ;#  Build the "amalgamation" source file
-    - make test                ;#  Run some tests (requires Tcl)
   script: 
     - chmod +x ./compile.sh
     - ./compile.sh

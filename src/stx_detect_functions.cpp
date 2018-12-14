@@ -620,30 +620,6 @@ build_track<function> build_function (
   return build_btrack(func, jumped_rbrace) ;
 }
 
-std::string join (
-  auto const & collection,
-  auto const & mapper,
-  auto const & separator,
-  auto const & ... mapper_args)
-{
-  std::stringstream ss ;
-  auto const size  = collection.size() ;
-  auto       index = 0ull ;
-
-
-  for (auto const & item : collection)
-  {
-    ss << mapper(item, mapper_args...) ;
-
-    if (index < size - 1)
-      ss << separator ;
-
-    index++ ;
-  }
-
-  return ss.str() ;
-}
-
 std::string prepare_function_param (
   function_param const & param, 
   std::string const & fname)
@@ -653,7 +629,7 @@ std::string prepare_function_param (
         " (name, type, parent) values ( " 
      << sia::quote(param.name) << ", " 
      << sia::quote(param.type) << ", " 
-     << sia::quote(fname)      << ")" ;
+     << sia::quote(fname)      << ");\n" ;
   
   return ss.str() ;
 }
@@ -667,7 +643,7 @@ std::string prepare_function_params (
   
   if (begin != end)
   {
-    auto && param = *begin                           ;
+    auto && param = *begin                                     ;
     ss << prepare_function_param(param, fname)                 ;
     ss << prepare_function_params(jump_one(begin), end, fname) ;
   }
@@ -675,30 +651,66 @@ std::string prepare_function_params (
   return ss.str() ;
 }
 
-std::string function_call_to_values (
-  function_call const & fcall, 
-  std::string const &   parent_name) 
-{
-  std::stringstream ss ;
-  ss << "(" ;
 
-  return ss.str() ;
-}
-
-std::string function_call_arg_to_values (
+std::string prepare_aliased_function_call_arg (
   function_arg const & arg, 
-  std::string const & parent_name) 
+  std::string const & alias)
 {
-  std::stringstream ss ;
-  ss << "(" << sia::quote(arg.value) << ", " << sia::quote(parent_name) << ")" ; 
+  std::stringstream ss ; 
+  ss << " insert into stx_function_arg " 
+        " (value, parent) values "
+    << "(" << sia::quote(arg.value) << ", " 
+    << sia::quote(alias) << ");\n";
+  
+  return ss.str() ;
+}
+
+std::string prepare_aliased_function_call_args (
+  auto const & begin, 
+  auto const & end, 
+  std::string const & alias)
+{
+  std::stringstream ss ; 
+  
+  if (begin != end)
+  {
+    auto && arg = *begin                                                  ;
+    ss << prepare_aliased_function_call_arg(arg, alias)                   ;
+    ss << prepare_aliased_function_call_args(jump_one(begin), end, alias) ;
+  }
 
   return ss.str() ;
 }
 
-std::string prepare_function_body_to_insert (
-  function const & f)
+std::string prepare_aliased_function_call ( 
+  aliased_function_call const afcall, 
+  std::string const & fname)
+{
+  auto && args = afcall.fcall.args ;
+  std::stringstream ss ; 
+  ss << " insert into stx_function_call "
+        " (alias, fname, parent) values "
+     << "(" << sia::quote(afcall.alias) << ", " 
+     << sia::quote(afcall.fcall.name) << ", "
+     << sia::quote(fname) << ");\n" ;
+  ss << prepare_aliased_function_call_args(args.begin(), args.end(), afcall.alias) ;
+
+  return ss.str() ;
+}
+
+std::string prepare_aliases_function_calls (
+  auto const & begin, 
+  auto const & end, 
+  std::string const & fname)
 {
   std::stringstream ss ;  
+  
+  if (begin != end)
+  {
+    auto && alfcall = (*begin)                                        ;
+    ss << prepare_aliased_function_call(alfcall, fname)               ;
+    ss << prepare_aliases_function_calls(jump_one(begin), end, fname) ;
+  }
 
   return ss.str() ;  
 }
@@ -715,13 +727,31 @@ std::string prepare_function_signature (
   return ss.str() ;
 }
 
+std::string prepare_result (
+  function_call const & result, 
+  std::string const fname) 
+{
+  auto && args  = result.args        ;
+  auto && alias = fname + "__result" ; 
+  std::stringstream ss ; 
+  ss << " insert into stx_function_call "
+        " (alias, fname, parent) values "
+     << "(" << sia::quote(alias) << ", "  
+     << sia::quote(result.name) << ", "
+     << sia::quote(fname) << ");\n" ;
+  ss << prepare_aliased_function_call_args(args.begin(), args.end(), alias) ;
+
+  return ss.str() ;
+}
+
 std::string prepare_function_to_insert (
   function const & fn)
 {
   std::stringstream ss ;
   ss << prepare_function_signature(fn) 
      << prepare_function_params(fn.params.begin(), fn.params.end(), fn.name) 
-     << prepare_function_body_to_insert(fn) ;
+     << prepare_aliases_function_calls(fn.aliases.begin(), fn.aliases.end(), fn.name) 
+     << prepare_result(fn.result, fn.name);
 
   return ss.str() ;
 }

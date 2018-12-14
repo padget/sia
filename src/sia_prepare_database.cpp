@@ -57,7 +57,7 @@ int main (int argc, char** argv)
       column("id", "integer", "primary key"),
       column("alias", "text", "not null"), 
       column("fname", "text", "not null"), 
-      column("parent", "text", "not null"));
+      column("parent", "text", "not null")) ;
 
     drop_table(db, "stx_function_arg") ;
     create_table(db, "stx_function_arg", 
@@ -68,12 +68,12 @@ int main (int argc, char** argv)
     drop_table(db, "stx_types_boundaries") ;
     create_table(db, "stx_types_boundaries", 
       column("begin", "integer", "not null"), 
-      column("end", "integer", "not null"));
+      column("end", "integer", "not null")) ;
     
     drop_table(db, "stx_functions_boundaries") ;
     create_table(db, "stx_functions_boundaries", 
       column("begin", "integer", "not null"), 
-      column("end", "integer", "not null"));
+      column("end", "integer", "not null")) ;
     
     drop_table(db, "stx_type_error") ;
     create_table(db, "stx_type_error", 

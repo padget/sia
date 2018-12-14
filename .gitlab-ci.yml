@@ -9,7 +9,21 @@ build:
   # install the necessary build tools when needed
   # before_script: 
   #   - apt update && apt -y install make autoconf 
+  before_script: 
+    - apt update && apt -y install fossil make
+    - mkdir ~/sqlite
+    - cd ~/sqlite
+    - fossil clone https://www.sqlite.org/src sqlite.fossil
+    - fossil open sqlite.fossil
+    - mkdir bld                ;#  Build will occur in a sibling directory
+    - cd bld                   ;#  Change to the build directory
+    - chmod +x ../sqlite/configure
+    - ../sqlite/configure      ;#  Run the configure script
+    - make                     ;#  Run the makefile.
+    - make sqlite3.c           ;#  Build the "amalgamation" source file
+    - make test                ;#  Run some tests (requires Tcl)
   script: 
+    - chmod +x ./compile.sh
     - ./compile.sh
   artifacts:
     paths:

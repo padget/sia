@@ -606,11 +606,9 @@ build_track<function> build_function (
   auto && jumped_colon    = jump_over(jumped_rbracket, "colon")        ;
   auto && type_track      = build_type(jumped_colon, end)              ;
   auto && jumped_lbrace   = jump_over(type_track.cursor, "lbrace")     ;
-
   auto && aliases_track   = build_aliases(jumped_lbrace, end)          ;
-
   auto && result_track    = build_result(aliases_track.cursor, end)    ;
-// auto && jumped_rbrace   = jump_over(result_track.cursor, "rbrace")   ;
+  auto && jumped_rbrace   = jump_over(result_track.cursor, "rbrace")   ;
   auto && func            = function {
     .name    = name_track.built    , 
     .type    = type_track.built    ,
@@ -619,7 +617,7 @@ build_track<function> build_function (
     .result  = result_track.built  
   } ;
   
-  return build_btrack(func, end) ;
+  return build_btrack(func, jumped_rbrace) ;
 }
 
 std::string join (

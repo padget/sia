@@ -75,11 +75,18 @@ match_track is_not_end_and_equal_to (
   match_track const & track,
   std::string_view    type)
 {
-  auto && expected = track.matched ? std::string(type) : track.expected ;
-  auto && matched  = track.matched && is_not_end(track) && is_of_type(track, type) ;
-  auto && cursor   = matched ? std::next(track.cursor) : track.cursor ;
-
-  return build_mtrack(track.begin, cursor, track.end, matched, matched ? "" : expected) ;
+  if (!track.matched)
+  {
+    return track ;
+  } 
+  else
+  {
+    auto && matched  = is_not_end(track) && is_of_type(track, type)                ;
+    auto && expected = matched ? std::move(track.expected) : std::string(type)     ;
+    auto && cursor   = matched ? std::next(track.cursor) : std::move(track.cursor) ;
+    
+    return build_mtrack(track.begin, cursor, track.end, matched, expected) ;
+  } 
 }
 
 match_track is_fn (
@@ -408,9 +415,16 @@ auto jump_over (
   }
   else
   {
-    sia::log::warn(std::string("je ne peux pas jumper car j'ai ") + cursor_type + " au lieu de " + type);
     return cursor ;
   }
+}
+
+auto maybe_jump_over (
+  auto const & cursor,
+  auto const & type, 
+  auto const & ... types)
+{
+  return jump_over(cursor, type, types...) ;
 }
 
 build_track<std::string> build_name (
@@ -469,7 +483,8 @@ build_track<function_args_t> build_args (
   auto const & begin, 
   auto const & end) 
 {
-  auto && jumped_comma = jump_over(begin, "comma") ;
+  auto && jumped_comma = maybe_jump_over(begin, "comma") ;
+  
   if (has_again_arg_to_build(jumped_comma, end)) 
   {
     auto && arg_track       = build_arg(jumped_comma, end)                 ; 
@@ -570,7 +585,7 @@ build_track<function_params_t> build_params (
   auto const & begin, 
   auto const & end)
 {
-  auto && jumped_comma = jump_over(begin, "comma") ;
+  auto && jumped_comma = maybe_jump_over(begin, "comma") ;
 
   if (has_again_param_to_build(jumped_comma, end)) 
   { 
@@ -720,7 +735,7 @@ std::string prepare_function_signature (
 {
   std::stringstream ss ;
   ss << " insert into stx_function " 
-        " (name, type) values ( "
+        " (name, type) values (    "
      << sia::quote(fn.name) << ", "
      << sia::quote(fn.type) << ");\n" ;
   
@@ -734,11 +749,11 @@ std::string prepare_result (
   auto && args  = result.args        ;
   auto && alias = fname + "__result" ; 
   std::stringstream ss ; 
-  ss << " insert into stx_function_call "
-        " (alias, fname, parent) values "
-     << "(" << sia::quote(alias) << ", "  
+  ss << " insert into stx_function_call   "
+        " (alias, fname, parent) values ( "
+     << sia::quote(alias)       << ", "  
      << sia::quote(result.name) << ", "
-     << sia::quote(fname) << ");\n" ;
+     << sia::quote(fname)       << ");\n" ;
   ss << prepare_aliased_function_call_args(args.begin(), args.end(), alias) ;
 
   return ss.str() ;
@@ -751,75 +766,19 @@ std::string prepare_function_to_insert (
   ss << prepare_function_signature(fn) 
      << prepare_function_params(fn.params.begin(), fn.params.end(), fn.name) 
      << prepare_aliases_function_calls(fn.aliases.begin(), fn.aliases.end(), fn.name) 
-     << prepare_result(fn.result, fn.name);
-
+     << prepare_result(fn.result, fn.name) ;
+ 
   return ss.str() ;
 }
-
-std::string to_string(std::vector<function_param>  const & params) 
-{
-  std::stringstream ss ;
-  
-  for (auto const & param : params)
-  {
-    ss << " (" 
-       << param.name << " - " << param.type
-       << ") " ;
-  }
-
-  return ss.str() ;
-}
-
-std::string to_string(function_call const & fcall)
-{
-  std::stringstream ss ;
-  ss << "( " ;
-  
-  for (auto const & arg : fcall.args)
-  {
-    ss << arg.value << " " ;
-  }
-
-  ss << ")." << fcall.name << "()" ;
-
-  return ss.str() ;
-}
-
-std::string to_string(std::vector<aliased_function_call> const & aliases)
-{
-  std::stringstream ss ;
-  
-  for (auto const & alias : aliases)
-  {
-    ss << "@" << alias.alias << " : " << to_string(alias.fcall) << "\n" ;
-  }
-
-  return ss.str() ;
-}
-
-std::string to_string(function const & f)
-{
-  std::stringstream ss ;
-  ss << "name : " << f.name << "\n" 
-     << "type : " << f.type << "\n"
-     << "params : " << to_string(f.params) << "\n" 
-     << "aliases : " << to_string(f.aliases) << "\n" 
-     << "result : " << to_string(f.result) << "\n" ;
-  return ss.str() ;
-}
-
-#include <algorithm>
 
 auto insert_function (
   db_t db, 
   match_track const & track) 
 {
-  auto && fn_track = build_function(track.begin, track.end) ;
+  auto && fn_track   = build_function(track.begin, track.end)     ;
   auto && finsertion = prepare_function_to_insert(fn_track.built) ;
-  sia::log::info(finsertion) ;  
-
   
-  // return ddl(db, finsertion) ;
+  return ddl(db, finsertion) ;
 }
 
 auto insert_treated_tokens (
@@ -832,7 +791,7 @@ auto insert_treated_tokens (
   std::stringstream ss ;
   ss << " insert into tkn_treated_token_interval (begin_id, end_id) values ("
      << (*begin).id << ", " << (*end).id << ");" ;
-  
+  sia::log::info(ss.str()) ;
   return ddl(db, ss.str()) ;
 }
 
@@ -845,6 +804,7 @@ auto insert_function_detection_error(
   ss << "insert into stx_function_error (expected_type, token_id) values (" 
      << sia::quote((*track.cursor).type) << ", " 
      << (*track.cursor).id << ");" ;
+  sia::log::error(ss.str()) ;
   sia::db::ddl(db, ss.str()) ;
 }
 
@@ -884,25 +844,24 @@ auto detect_functions (
     
     for (auto const & fbound : fbounds)
     {
+      sia::log::info(std::string("traitement de ")+std::to_string(fbound.begin) + " à "+std::to_string(fbound.end)) ;
       auto && tokens = select_tokens_from_boundaries(db, fbound) ; 
       auto && function_track = is_function(
         build_mtrack(tokens.begin(), tokens.begin(), tokens.end())) ;
      
       if (function_track.matched)
       {
-        sia::log::info("une fonction a été détectée") ;
         insert_function(db, function_track) ;
         insert_treated_tokens(db, function_track) ;
       }
       else 
       {
-        sia::log::error("aucune fonction detectée") ;
         insert_function_detection_error(db, function_track) ;
       }
     }
 
-    end_transaction(db) ;
     offset += fbounds.size() ;
+    end_transaction(db) ;
   }
 
   return false ;

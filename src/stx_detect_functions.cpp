@@ -321,7 +321,7 @@ struct token_mapper
     row_t && row) const
   {
     using namespace sia::token ;
-    return (token) {
+    return token {
         .id       = std::stoull(row.at("id")),
         .filename = std::move(row.at("filename")),
         .line     = std::stoi(row.at("line")),

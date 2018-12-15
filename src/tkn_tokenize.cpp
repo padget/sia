@@ -167,7 +167,7 @@ namespace sia::token
       case ' '  : return true ;
       default   : return false ;  
     }
-  } ;
+  }
 
   auto next_blank (
     auto const & begin, 
@@ -392,7 +392,7 @@ namespace sia::db
     auto operator() (
       sia::db::row_t const & row) const
     {
-      return (file_line) {
+      return file_line {
         .filename = row.at("filename")         ,
         .line     = row.at("line")             ,
         .num      = std::stoull(row.at("num"))   , 

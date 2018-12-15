@@ -17,7 +17,7 @@ namespace sia::type
     std::string const & name, 
     std::string const & type_name)
   {
-    return (type_member) {
+    return type_member {
       .name      = name, 
       .type_name = type_name
     } ;
@@ -33,7 +33,7 @@ namespace sia::type
     std::string const &              name, 
     std::vector<type_member> const & members)
   {
-    return (type) {
+    return type {
       .name    = name, 
       .members = members
     } ;
@@ -50,7 +50,7 @@ struct token_mapper
     sia::db::row_t && row) const
   {
     using namespace sia::token ;
-    return (token) {
+    return token {
         .id       = std::stoull(row.at("id")),
         .filename = row.at("filename"),
         .line     = std::stoi(row.at("line")),
@@ -71,7 +71,7 @@ struct type_boundaries_mapper
   type_boundaries
   operator() (sia::db::row_t && row) const
   {
-    return (type_boundaries) {
+    return type_boundaries {
       .begin = std::stoi(row.at("begin")), 
       .end   = std::stoi(row.at("end"))
     } ;

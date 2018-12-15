@@ -298,7 +298,7 @@ namespace sia::db
   {
     auto operator() (row_t && row) const
     {
-      return std::stoi(row.at("c")) ;
+      return std::stoull(row.at("c")) ;
     }
   } ;
 

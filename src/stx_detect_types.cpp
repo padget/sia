@@ -5,6 +5,10 @@
 
 using namespace sia::db ;
 
+using tokens_t = std::list<sia::token::token> ;
+using tokens_it_t = tokens_t::iterator ; 
+using limit_t = size_t ;
+
 namespace sia::type
 {
   struct type_member 
@@ -78,85 +82,116 @@ struct type_boundaries_mapper
   }
 } ;
 
-template <typename cursor_t>
 struct match_track
 {
-  cursor_t    begin   ;
-  cursor_t    cursor  ;
-  cursor_t    end     ; 
-  bool        matched ;
+  tokens_it_t begin    ; 
+  tokens_it_t cursor   ;
+  tokens_it_t end      ;
+  bool        matched  ;
+  std::string expected ; 
 } ;
 
-template <typename cursor_t>
-auto build_track (
-  cursor_t const & begin , 
-  cursor_t const & cursor, 
-  cursor_t const & end   , 
-  bool matched = true)
+match_track build_track (
+  tokens_it_t const & begin  , 
+  tokens_it_t const & cursor ,   
+  tokens_it_t const & end    , 
+  bool matched = true        , 
+  std::string const & expected = {})
 {
-  return match_track<cursor_t> {
-    .begin   = begin   ,
-    .cursor  = cursor  ,
-    .end     = end     ,  
-    .matched = matched  
+  return match_track {
+    .begin    = begin    ,
+    .cursor   = cursor   ,
+    .end      = end      ,  
+    .matched  = matched  ,
+    .expected = expected 
   } ;
 }
 
+match_track is_sequence_of (
+  match_track const & track, 
+  auto && close_test, 
+  auto && item_test, 
+  auto && sep_test)
+{
+  if (!close_test(track).matched)
+  {
+    auto && item_track = item_test(track)     ;
+    auto && sep_track  = sep_test(item_track) ; 
+  
+    return 
+      sep_track.matched           ? is_sequence_of(sep_track, close_test, item_test, sep_test) :
+      item_test(item_track).matched ? sep_track : 
+                                      item_track ;
+  }
+  else 
+  {
+    return track ;
+  }
+}
+
 auto is_of_type (
-  match_track<auto> const & track, 
+  match_track const & track, 
   std::string_view          type)
 {
   return (*track.cursor).type == type ;
 }
 
 auto is_not_end (
-  match_track<auto> const & track)
+  match_track const & track)
 {
   return track.cursor != track.end ;
 }
 
-auto is_not_end_and_equal_to (
-  match_track<auto> const & track,
-  std::string_view          type)
+match_track is_not_end_and_equal_to (
+  match_track const & track,
+  std::string_view    type)
 {
-  auto && matched = track.matched && is_not_end(track) && is_of_type(track, type) ;
-  auto && cursor  = matched ? std::next(track.cursor) : track.cursor ;
-  
-  return build_track(track.begin, cursor, track.end, matched) ;
+  if (!track.matched)
+  {
+    return track ;
+  } 
+  else
+  {
+    auto && matched  = is_not_end(track) && is_of_type(track, type)                ;
+    auto && expected = matched ? track.expected : std::string(type)     ;
+    auto && cursor   = matched ? std::next(track.cursor) : track.cursor ;
+    
+    return build_track(track.begin, cursor, track.end, matched, expected) ;
+  } 
 }
 
 auto is_name (
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "name") ;
 }
 
 auto is_lbracket (
-  match_track<auto> const & track)
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "lbracket") ;
 }
 
 auto is_rbracket (
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "rbracket") ;
 }
 
 auto is_colon (
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "colon") ;
 }
 
 auto is_comma (
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   return is_not_end_and_equal_to(track, "comma") ;
 }
 
 auto is_param (
-  match_track<auto> const & track)
+  match_track const & track)
 {
   auto && name_tracked     = is_name(track)         ; 
   auto && colon_tracked    = is_colon(name_tracked) ;
@@ -166,30 +201,20 @@ auto is_param (
 }
 
 auto is_params (
-  match_track<auto> const & track)
+  match_track const & track)
   -> std::decay_t<decltype(track)>
 {
-  if (!is_rbracket(track).matched) 
-  {
-    auto && arg_track   = is_param(track)       ;
-    auto && comma_track = is_comma(arg_track) ;
-    
-    return comma_track.matched ? is_params(comma_track) : arg_track ;
-  }
-  else 
-  {
-    return track ;
-  }
+  return is_sequence_of(track, is_rbracket, is_param, is_comma) ;
 }
 
 auto is_type (
-  match_track<auto> const & track)
+  match_track const & track)
 {
   return is_not_end_and_equal_to(track, "type") ;
 }
 
 auto is_type_declaration (
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   auto && type_tracked     = is_type(track)                       ;
   auto && name_tracked     = is_name(type_tracked)                ;
@@ -331,18 +356,19 @@ auto prepare_type_for_insert (
 
 void insert_type_detection_error (
   sia::db::db_t             db,
-  match_track<auto> const & track_in_error) 
+  match_track const & track_in_error) 
 { 
   std::stringstream ss ;
   ss << "insert into stx_type_error (expected_type, token_id) values (" 
-     << sia::quote((*track_in_error.cursor).type) << ", " 
+     << sia::quote(track_in_error.expected) << ", " 
      << (*track_in_error.cursor).id << ");" ;
+  sia::log::info(ss.str()) ;
   sia::db::ddl(db, ss.str()) ;
 }
 
 auto insert_type (
   sia::db::db_t             db,
-  match_track<auto> const & track) 
+  match_track const & track) 
 {
   auto && type = build_type(track.begin, track.end) ;
   auto && type_insert_query = prepare_type_for_insert(type) ;
@@ -351,7 +377,7 @@ auto insert_type (
 
 auto insert_treated_tokens (
   sia::db::db_t             db,
-  match_track<auto> const & track)
+  match_track const & track)
 {
   auto && begin = track.begin ;
   auto && end   = std::prev(track.end) ;

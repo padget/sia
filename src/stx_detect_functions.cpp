@@ -75,8 +75,6 @@ match_track is_not_end_and_equal_to (
   match_track const & track,
   std::string_view    type)
 {
-  sia::log::info(std::to_string((*track.cursor).id) + " type inspecté " + std::string(type)+" vs type reel "+(*track.cursor).type+ " vs type expected " + track.expected)  ;
-
   if (!track.matched)
   {
     return track ;
@@ -229,18 +227,16 @@ match_track is_number (
 match_track is_arg (
   match_track const & track)
 {
-  std::cout << "si_arg\n" ;
   auto && name_track = is_name(track) ;
-  std::cout << "is_arg end\n" ;
+
   return name_track ; //is_one_of(track, is_name, is_number) ;
 }  
 
 match_track is_args (
   match_track const & track)
-{
-  std::cout << "si_args\n" ;
+{ 
   auto && args_track = is_sequence_of(track, is_rbracket, is_arg, is_comma) ;
-  std::cout << "is_args end\n" ;
+
   return args_track ;
 }
 
@@ -471,7 +467,7 @@ build_track<std::string> build_alias (
   auto const & begin, 
   auto const & end) 
 {
-  auto && alias  = (*begin).value            ;
+  auto && alias  = (*begin).value           ;
   auto && cursor = jump_over(begin, "name") ;
 
   return build_btrack(alias, cursor) ;
@@ -517,7 +513,7 @@ build_track<function_args_t> build_args (
   
   if (has_again_arg_to_build(jumped_comma, end)) 
   {
-    auto && arg_track       = build_arg(jumped_comma, end)                 ; 
+    auto && arg_track       = build_arg(jumped_comma, end)          ; 
     auto && args            = function_args_t{arg_track.built}      ;
     auto && next_arg_cursor = jump_one(arg_track.cursor)            ;
     auto && next_args_track = build_args(next_arg_cursor, end)      ;
@@ -821,10 +817,9 @@ auto insert_treated_tokens (
   std::stringstream ss ;
   ss << " insert into tkn_treated_token_interval (begin_id, end_id) values ("
      << (*begin).id << ", " << (*end).id << ");" ;
-  sia::log::info(ss.str()) ;
+  
   return ddl(db, ss.str()) ;
 }
-
 
 auto insert_function_detection_error(
   db_t db, 
@@ -834,7 +829,7 @@ auto insert_function_detection_error(
   ss << "insert into stx_function_error (expected_type, token_id) values (" 
      << sia::quote(track.expected) << ", " 
      << (*track.cursor).id << ");" ;
-  sia::log::error(ss.str()) ;
+  
   sia::db::ddl(db, ss.str()) ;
 }
 
@@ -857,7 +852,6 @@ auto populate_stx_functions_boundaries (
       " having tk2.id = min(tk2.id)", true) ;
 }
 
-
 auto detect_functions (
   db_t db)
 {
@@ -874,7 +868,6 @@ auto detect_functions (
     
     for (auto const & fbound : fbounds)
     {
-      sia::log::info(std::string("traitement de ")+std::to_string(fbound.begin) + " à "+std::to_string(fbound.end)) ;
       auto && tokens = select_tokens_from_boundaries(db, fbound) ; 
       auto && function_track = is_function(
         build_mtrack(tokens.begin(), tokens.begin(), tokens.end())) ;
@@ -901,10 +894,10 @@ int main (int argc, char ** argv)
 {
   sia::script::launching_of(argv[0]) ;
   
-  auto db        = open_database("lol2.sia.db") ;
-  ddl(db, "pragma journal_mode = off") ;
-  populate_stx_functions_boundaries(db)         ;
-  auto has_error = detect_functions(db)         ; 
+  auto db = open_database("lol2.sia.db") ;
+  ddl(db, "pragma journal_mode = off")   ;
+  populate_stx_functions_boundaries(db)  ;
+  auto has_error = detect_functions(db)  ; 
   
   sia::script::stop_of(argv[0]) ;
   return has_error ? EXIT_FAILURE : EXIT_SUCCESS ;

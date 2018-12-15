@@ -7,5 +7,5 @@ fn fibonacci (n: int, n2: int2) : int {
   alias fib_n_minus_1 : (n_minus_1).fibonacci()
   alias fib_n_minus_2 : (n_minus_2).fibonacci()
     
-  (fib_n_minus_,  fib_n_minus_2).add()
+  (fib_n_minus_ fib_n_minus_2).add()
 }

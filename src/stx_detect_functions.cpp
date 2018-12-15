@@ -229,7 +229,7 @@ match_track is_arg (
 {
   auto && name_track = is_name(track) ;
 
-  return name_track ; //is_one_of(track, is_name, is_number) ;
+  return is_one_of(track, is_name, is_number) ;
 }  
 
 match_track is_args (
@@ -829,7 +829,7 @@ auto insert_function_detection_error(
   ss << "insert into stx_function_error (expected_type, token_id) values (" 
      << sia::quote(track.expected) << ", " 
      << (*track.cursor).id << ");" ;
-  
+  sia::log::info(ss.str()) ;
   sia::db::ddl(db, ss.str()) ;
 }
 

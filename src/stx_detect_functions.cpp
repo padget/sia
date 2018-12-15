@@ -75,6 +75,8 @@ match_track is_not_end_and_equal_to (
   match_track const & track,
   std::string_view    type)
 {
+  sia::log::info(std::to_string((*track.cursor).id) + " type inspecté " + std::string(type)+" vs type reel "+(*track.cursor).type+ " vs type expected " + track.expected)  ;
+
   if (!track.matched)
   {
     return track ;
@@ -82,8 +84,8 @@ match_track is_not_end_and_equal_to (
   else
   {
     auto && matched  = is_not_end(track) && is_of_type(track, type)                ;
-    auto && expected = matched ? std::move(track.expected) : std::string(type)     ;
-    auto && cursor   = matched ? std::next(track.cursor) : std::move(track.cursor) ;
+    auto && expected = matched ? track.expected : std::string(type)     ;
+    auto && cursor   = matched ? std::next(track.cursor) : track.cursor ;
     
     return build_mtrack(track.begin, cursor, track.end, matched, expected) ;
   } 
@@ -135,20 +137,61 @@ match_track is_param (
   return typename_tracked ;
 }
 
-match_track is_params (
-  match_track const & track)
-{  
-  if (!is_rbracket(track).matched) 
+match_track is_one_of (
+  match_track const & track,
+  auto && is_first,
+  auto && ... is_nexts)
+{
+  auto && first_track = is_first(track) ;
+
+  if constexpr (sizeof...(is_nexts) > 0)
+    return first_track.matched ? first_track : is_one_of(track, is_nexts...) ;
+  else 
+    return first_track ;   
+}
+
+match_track is_simple_sequence_of (
+  match_track const & track, 
+  auto && has_again_test, 
+  auto && item_test)
+{
+  if (has_again_test(track))
   {
-    auto && arg_track   = is_param(track)       ;
-    auto && comma_track = is_comma(arg_track) ;
-    
-    return comma_track.matched ? is_params(comma_track) : arg_track ;
+    auto && item_track = item_test(track) ;
+    return item_track.matched ? is_simple_sequence_of(item_track, has_again_test, item_test) : track ;
   }
   else 
   {
     return track ;
   }
+}
+
+match_track is_sequence_of (
+  match_track const & track, 
+  auto && close_test, 
+  auto && item_test, 
+  auto && sep_test)
+{
+  if (!close_test(track).matched)
+  {
+    auto && item_track = item_test(track)     ;
+    auto && sep_track  = sep_test(item_track) ; 
+  
+    return 
+      sep_track.matched           ? is_sequence_of(sep_track, close_test, item_test, sep_test) :
+      item_test(item_track).matched ? sep_track : 
+                                      item_track ;
+  }
+  else 
+  {
+    return track ;
+  }
+}
+
+match_track is_params (
+  match_track const & track)
+{  
+  return is_sequence_of(track, is_rbracket, is_param, is_comma) ;
 }
 
 match_track is_signature ( 
@@ -183,39 +226,22 @@ match_track is_number (
   return is_not_end_and_equal_to(track, "number") ;
 }
 
-match_track is_one_of (
-  match_track const & track,
-  auto && is_first,
-  auto && ... is_nexts)
-{
-  auto && first_track = is_first(track) ;
-
-  if constexpr (sizeof...(is_nexts) > 0)
-    return first_track.matched ? first_track : is_one_of(track, is_nexts...) ;
-  else 
-    return first_track ;   
-}
-
 match_track is_arg (
   match_track const & track)
 {
-  return is_one_of(track, is_name, is_number) ;
+  std::cout << "si_arg\n" ;
+  auto && name_track = is_name(track) ;
+  std::cout << "is_arg end\n" ;
+  return name_track ; //is_one_of(track, is_name, is_number) ;
 }  
 
 match_track is_args (
   match_track const & track)
 {
-  if (!is_rbracket(track).matched) 
-  {
-    auto && arg_track   = is_arg(track)       ;
-    auto && comma_track = is_comma(arg_track) ;
-    
-    return comma_track.matched ? is_args(comma_track) : arg_track ;
-  }
-  else 
-  {
-    return track ;
-  }
+  std::cout << "si_args\n" ;
+  auto && args_track = is_sequence_of(track, is_rbracket, is_arg, is_comma) ;
+  std::cout << "is_args end\n" ;
+  return args_track ;
 }
 
 match_track is_point (
@@ -240,7 +266,7 @@ match_track is_simple_function_call (
   auto && name_track      = is_name(point_track)         ; 
   auto && lbracket2_track = is_lbracket(name_track)      ;
   auto && rbracket2_track = is_rbracket(lbracket2_track) ;
-  
+
   return rbracket2_track ;
 }
 
@@ -255,12 +281,16 @@ match_track is_function_call (
   return sfcall_track ;
 }
 
+bool has_again_alias_to_track (
+  match_track const & track)
+{
+  return (*track.cursor).type == "alias" ; 
+}
+
 match_track is_aliases (
   match_track const & track)
 {
-  auto && fcall_track = is_function_call(track) ;
-  
-  return fcall_track.matched ? is_aliases(fcall_track) : track ;
+  return is_simple_sequence_of(track, has_again_alias_to_track, is_function_call) ;
 }
 
 match_track is_fbody (
@@ -269,7 +299,7 @@ match_track is_fbody (
   auto && lbrace_track  = is_lbrace(track)         ;
   auto && aliases_track = is_aliases(lbrace_track) ;
   auto && sfcall_track  = is_one_of(aliases_track, 
-    is_simple_function_call, is_number, is_name)   ;
+    is_number, is_name, is_simple_function_call)   ;
   auto && rbrace_track  = is_rbrace(sfcall_track)  ;
 
   return rbrace_track ;
@@ -802,7 +832,7 @@ auto insert_function_detection_error(
 {
   std::stringstream ss ;
   ss << "insert into stx_function_error (expected_type, token_id) values (" 
-     << sia::quote((*track.cursor).type) << ", " 
+     << sia::quote(track.expected) << ", " 
      << (*track.cursor).id << ");" ;
   sia::log::error(ss.str()) ;
   sia::db::ddl(db, ss.str()) ;

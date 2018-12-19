@@ -1,4 +1,3 @@
-echo 'prout'
 export PATH=.:$PATH
 ./sia_configure_compiler --config sia.properties
 ./sia_prepare_database
@@ -7,5 +6,6 @@ export PATH=.:$PATH
 ./stx_detect_types
 ./stx_detect_functions
 ./stx_detect_function_cases
+./stx_show_errors
 
 

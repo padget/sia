@@ -1,6 +1,6 @@
 type person (name: string, firstname: string, age: int, addr: address)
 type address (num: int, street: string, postal_code: string, country: string)
-
+type ()
 fn fibonacci (n: int) : int {
   alias n_minus_1     : (n, 1).minus()
   alias n_minus_2     : (n, 2).minus()
@@ -25,3 +25,6 @@ casefn fibonacci (12) {
 }
 
 casefn fibonacci(24{})
+
+type toto(name: qpojsd name:int)
+    type game(anem:naem,,mlqdsjkmj)

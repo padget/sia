@@ -375,6 +375,7 @@ namespace sia::db
   {
     return ddl(db, 
       "update tkn_token set type='fn'    where value = 'fn'    ; "
+      "update tkn_token set type='case'  where value = 'case'  ; "
       "update tkn_token set type='type'  where value = 'type'  ; "
       "update tkn_token set type='alias' where value = 'alias' ; ") ;
   }

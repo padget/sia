@@ -374,10 +374,10 @@ namespace sia::db
   auto update_tokens_for_keywords (db_t db) 
   {
     return ddl(db, 
-      "update tkn_token set type='fn'    where value = 'fn'    ; "
-      "update tkn_token set type='case'  where value = 'case'  ; "
-      "update tkn_token set type='type'  where value = 'type'  ; "
-      "update tkn_token set type='alias' where value = 'alias' ; ") ;
+      "update tkn_token set type='fn'     where value = 'fn'     ; "
+      "update tkn_token set type='casefn' where value = 'casefn' ; "
+      "update tkn_token set type='type'   where value = 'type'   ; "
+      "update tkn_token set type='alias'  where value = 'alias'  ; ") ;
   }
 
   struct file_line 

@@ -32,6 +32,11 @@ echo ' -- stx_detect_functions'
 g++ -std=c++2a -c src/stx_detect_functions.cpp -o stx_detect_functions.o -Ilib/include -Iinclude -fconcepts -Wall -pedantic
 g++ -std=c++2a -o stx_detect_functions stx_detect_functions.o lib/obj/sqlite3.o 
 
+echo ' -- stx_detect_function_cases'
+
+g++ -std=c++2a -c src/stx_detect_function_cases.cpp -o stx_detect_function_cases.o -Ilib/include -Iinclude -fconcepts -Wall -pedantic -Wunused
+g++ -std=c++2a -o stx_detect_function_cases stx_detect_function_cases.o lib/obj/sqlite3.o 
+
 echo ' -- clean *.o *.db'
 
 rm -f *.o

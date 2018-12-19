@@ -6,5 +6,6 @@ export PATH=.:$PATH
 ./tkn_tokenize
 ./stx_detect_types
 ./stx_detect_functions
+./stx_detect_function_cases
 
 

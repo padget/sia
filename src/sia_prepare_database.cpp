@@ -65,6 +65,29 @@ int main (int argc, char** argv)
       column("value", "text", "not null"), 
       column("parent", "text", "not null")) ;
 
+
+
+
+    drop_table(db, "stx_case_function") ;
+    create_table(db, "stx_case_function", 
+      column("id", "integer", "primary key"), 
+      column("name", "text", "not null")) ;
+    
+    drop_table(db, "stx_case_function_call") ;
+    create_table(db, "stx_case_function_call", 
+      column("id", "integer", "primary key"),
+      column("alias", "text", "not null"), 
+      column("fname", "text", "not null"), 
+      column("parent", "text", "not null")) ;
+
+    drop_table(db, "stx_case_function_arg") ;
+    create_table(db, "stx_case_function_arg", 
+      column("id", "integer", "primary key"), 
+      column("value", "text", "not null"), 
+      column("parent", "text", "not null")) ;
+
+
+
     drop_table(db, "stx_types_boundaries") ;
     create_table(db, "stx_types_boundaries", 
       column("begin", "integer", "not null"), 
@@ -72,6 +95,11 @@ int main (int argc, char** argv)
     
     drop_table(db, "stx_functions_boundaries") ;
     create_table(db, "stx_functions_boundaries", 
+      column("begin", "integer", "not null"), 
+      column("end", "integer", "not null")) ;
+
+    drop_table(db, "stx_function_case_boundaries") ;
+    create_table(db, "stx_function_case_boundaries", 
       column("begin", "integer", "not null"), 
       column("end", "integer", "not null")) ;
     
@@ -86,7 +114,13 @@ int main (int argc, char** argv)
       column("id", "integer", "primary key"), 
       column("expected_type", "text", "not null"), 
       column("token_id", "integer", "not null")) ;
-    
+   
+    drop_table(db, "stx_case_function_error") ;
+    create_table(db, "stx_case_function_error", 
+      column("id", "integer", "primary key"), 
+      column("expected_type", "text", "not null"), 
+      column("token_id", "integer", "not null")) ;
+
     drop_table(db, "tkn_not_treated_token") ;
     create_table(db, "tkn_treated_token_interval", 
       column("begin_id", "integer", "not null"), 

@@ -125,16 +125,6 @@ match_track is_comma (
   return is_not_end_and_equal_to(track, "comma") ;
 }
 
-match_track is_param (
-  match_track const & track)
-{
-  auto && name_tracked     = is_name(track)         ; 
-  auto && colon_tracked    = is_colon(name_tracked) ;
-  auto && typename_tracked = is_name(colon_tracked) ;
-
-  return typename_tracked ;
-}
-
 match_track is_one_of (
   match_track const & track,
   auto && is_first,
@@ -186,6 +176,16 @@ match_track is_sequence_of (
   }
 }
 
+match_track is_param (
+  match_track const & track)
+{
+  auto && name_tracked     = is_name(track)         ; 
+  auto && colon_tracked    = is_colon(name_tracked) ;
+  auto && typename_tracked = is_name(colon_tracked) ;
+
+  return typename_tracked ;
+}
+
 match_track is_params (
   match_track const & track)
 {  
@@ -224,11 +224,13 @@ match_track is_number (
   return is_not_end_and_equal_to(track, "number") ;
 }
 
+match_track is_simple_function_call (
+  match_track const & track) ;
+
 match_track is_arg (
   match_track const & track)
 {
-  auto && name_track = is_name(track) ;
-
+  // TODO faire en sorte de pouvoir prendre aussi des simple_function_call
   return is_one_of(track, is_name, is_number) ;
 }  
 
@@ -691,7 +693,6 @@ std::string prepare_function_params (
 
   return ss.str() ;
 }
-
 
 std::string prepare_aliased_function_call_arg (
   function_arg const & arg, 

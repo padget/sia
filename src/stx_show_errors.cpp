@@ -1,5 +1,6 @@
 #include <sia.hpp>
 #include <sstream>
+#include <boost/format.hpp>
 
 using namespace sia::db ;
 
@@ -50,10 +51,10 @@ struct token_mapper
 std::string build_token_by_id_query (
   id_t id) 
 {
-  std::stringstream ss ;
-  ss << "select * from tkn_token where id="
-     << id << ";\n" ;
-  return ss.str() ;
+  return (boost::format(
+    " select * from tkn_token "
+    " where id=%d;\n ") 
+    % id).str() ;
 } 
 
 sia::token::token select_token_by_id (
@@ -88,12 +89,11 @@ struct file_line_mapper
 std::string build_file_line_by_token_query (
   sia::token::token const & tkn)
 {
-  std::stringstream ss ;
-  ss << "select * from tkn_file_lines where filename="
-     << sia::quote(tkn.filename) << "and num="
-     << tkn.line << ";\n" ;
-  
-  return ss.str() ;
+  return (boost::format(
+    " select * from tkn_file_lines "
+    " where filename='%s' and num=%d;\n") 
+    % tkn.filename 
+    % tkn.line).str() ; 
 } 
 
 file_line select_file_line_by_token (
@@ -109,15 +109,14 @@ std::string prepare_error_to_show (
   file_line const & line, 
   type_errors const & terror)
 {
-  std::string indent = std::string("|") + std::string(4, ' ') ;
-  
-  std::stringstream ss ;
-  ss << "syntax error at " << line.filename << ":" << tkn.line << ":" << tkn.column << "\n\n" ;
-  ss << indent << std::string(line.length, ' ') << "\n" ;
-  ss << indent << line.line << "\n" ;
-  ss << indent << std::string(tkn.column-1, ' ') << "^ : expected a " << terror.expected_type << "\n" ;
-
-  return ss.str() ;
+  return (boost::format(
+    "syntax error at %s:%d:%d\n\n"
+    "|\n"
+    "|  %s\n"
+    "|  %s^ : expected a %s\n") 
+    % line.filename % tkn.line % tkn.column
+    % line.line
+    % std::string(tkn.column - 1, ' ') % terror.expected_type).str() ;
 } 
 
 void show_type_errors (db_t db)
@@ -145,6 +144,7 @@ void show_case_function_errors (db_t db)
 int main (int argc, char** argv) 
 {
   sia::script::launching_of(argv[0]) ;
+
   auto db = open_database("lol2.sia.db") ;
 
   if (is_db_open(db)) 

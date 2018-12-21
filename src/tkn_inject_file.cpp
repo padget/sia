@@ -1,10 +1,17 @@
 #include <sia.hpp>
 #include <fstream>
 #include <sstream>
+#include <boost/format.hpp>
+#include <boost/algorithm/string/join.hpp>
+#include <boost/range/algorithm.hpp>
+#include <boost/range/combine.hpp>
 
-auto read_chunk (auto & file, auto max_size) 
+using lines_t = std::list<std::string> ;
+using values_t = std::list<std::string> ;
+
+lines_t read_chunk (auto & file, auto max_size) 
 {
-  auto lines = std::list<std::string>() ;
+  lines_t lines = std::list<std::string>() ;
   auto index = 0ull ;
   auto line  = std::string() ;
 
@@ -17,34 +24,38 @@ auto read_chunk (auto & file, auto max_size)
   return lines ;
 }
 
-auto prepare_lines_to_be_injected (
-  auto && lines, 
+auto prepare_line_to_be_injected (
+  std::string   const & filename, 
+  size_t        const & current_line_num)
+{ 
+  return [=] (auto const & line_with_index) mutable {
+    std::string line  ; 
+    size_t      index ;
+    boost::tie(line, index) = line_with_index ;
+    return ( boost::format("('%s', '%s', %d, %d)") % filename % line % (current_line_num + index) % line.size()).str() ;
+  } ;
+}
+
+std::string prepare_lines_to_be_injected (
+  lines_t     const & lines, 
   std::string const & filename, 
-  auto const & current_line_num)
+  size_t      const & current_line_num)
 {
-
-  std::stringstream ss ; 
-  auto index = 0u ; 
-  ss << "insert into tkn_file_lines (filename, line, num, length) values " ;
+  using namespace boost::range ;
+  std::vector<size_t> indexes(lines.size()) ;
+  generate(indexes, [index = 0] () mutable {return index++ ;}) ;
+ 
+  values_t values ;
+  transform(
+    combine(lines, indexes), 
+    std::back_inserter(values), 
+    prepare_line_to_be_injected(filename, current_line_num)) ;
   
-  for (auto && line : lines)
-  {
-    ss << "(" 
-       << sia::quote(filename) << ", " 
-       << sia::quote(line) << ", "
-       << (current_line_num + index) << ", " 
-       << line.size() << ")" ;
-
-    if (index <= lines.size() - 2)
-    {
-      ss << ", " ;
-    }
-
-    index++ ;
-  }
-
-  ss << ";" ;
-  return ss.str() ;
+  return (boost::format(
+    "insert into tkn_file_lines    "
+    "(filename, line, num, length) " 
+    "values %s;\n                  ") 
+    % boost::join(values, ",")).str() ;
 }
 
 auto inject_file (

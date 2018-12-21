@@ -1,7 +1,11 @@
 #include <sia.hpp>
+#include <boost/assign/list_of.hpp>
 #include <vector>
 #include <map>
 #include <string_view> 
+#include <boost/format.hpp>
+#include <boost/algorithm/string/join.hpp>
+#include <boost/range/algorithm/transform.hpp>
 
 using namespace sia::db ;
 
@@ -43,6 +47,8 @@ namespace sia::type
     } ;
   }
 }
+
+using type_members_t = std::vector<sia::type::type_member> ;
 
 #include <cstdlib>
 #include <list>
@@ -233,11 +239,10 @@ namespace std
   }
 }
 
-auto create_vector_of_type_member (
+type_members_t create_vector_of_type_member (
   auto && ... type_members)
 {
-  return std::vector<sia::type::type_member> 
-  {std::move(type_members)...} ;
+  return {std::move(type_members)...} ;
 }
 
 auto build_member (
@@ -248,8 +253,7 @@ auto build_member (
     (*begin).value, (*std::next(begin, 2)).value) ;
 }
 
-std::vector<sia::type::type_member> 
-build_members (
+type_members_t build_members (
   auto const & begin, 
   auto const & end) 
 {
@@ -287,28 +291,27 @@ auto build_type (
 {
   using namespace sia::type ;
 
-  auto name = build_name(std::next(begin), end) ;
+  auto name    = build_name(std::next(begin), end)       ;
   auto members = build_members(std::next(begin, 3), end) ;
 
   return create_type(name, members) ;
 }
 
 auto create_token_query (
-  auto const & boundaries) 
+  type_boundaries const & boundaries) 
 {
-  std::stringstream ss ;
-  ss << "select * from tkn_token as tk where tk.id between "
-     << std::to_string(boundaries.begin) 
-     << " and "
-     << std::to_string(boundaries.end) 
-     << " order by tk.id;";
-  return ss.str() ;
+  return (boost::format(
+    " select * from tkn_token as tk "
+    " where tk.id between %d and %d "
+    " order by tk.id ")
+    % boundaries.begin
+    % boundaries.end).str() ;
 }
 
 auto select_type_boundaries (
   sia::db::db_t db, 
-  auto const &  limit, 
-  auto const &  offset) 
+  limit_t const &  limit, 
+  limit_t const &  offset) 
 {
    return sia::db::select(db, 
     "select * from stx_types_boundaries", 
@@ -321,31 +324,23 @@ auto prepare_type_for_insert (
 {
   std::stringstream ss ;
 
-  ss << "insert into stx_type (name, nb_members) values ("
-     << sia::quote(type.name) << ", "
-     << type.members.size()
-     << ");\n" ; 
+  
+
+  auto && insert_type = 
+   (boost::format("insert into stx_type (name, nb_members) values (%s, %d);\n")
+     % type.name
+     % type.members.size()) ;
+
+  ss << insert_type;
 
   if (!type.members.empty())   
   { 
     ss << "insert into stx_type_member (name, type, parent) values " ;
     
-    auto i = 0u ;
-
-    for (auto const & member : type.members) 
-    {
-      ss << "(" << sia::quote(member.name) << ", " 
-        << sia::quote(member.type_name) << ", "
-        << sia::quote(type.name) << ")"; 
-      
-      if (i < type.members.size() - 1) 
-      {
-        ss << ',' ;
-      }
-
-      ++i ; 
-    }
-
+    std::list<std::string> membersstr ;
+    
+    boost::range::transform(type.members, std::back_inserter(membersstr), [] (auto&&) {return std::string("");});
+    ss << boost::join(membersstr, ",") ;
     ss << ";\n" ;
   }
 
@@ -358,12 +353,14 @@ void insert_type_detection_error (
   sia::db::db_t             db,
   match_track const & track_in_error) 
 { 
-  std::stringstream ss ;
-  ss << "insert into stx_type_error (expected_type, token_id) values (" 
-     << sia::quote(track_in_error.expected) << ", " 
-     << (*track_in_error.cursor).id << ");" ;
-  sia::log::info(ss.str()) ;
-  sia::db::ddl(db, ss.str()) ;
+  auto query = boost::format(
+    " insert into stx_type_error " 
+    " (expected_type, token_id) "
+    " values ('%s', %d);\n")
+    % track_in_error.expected 
+    % (*track_in_error.cursor).id ;
+
+  sia::db::ddl(db, query.str()) ;
 }
 
 auto insert_type (
@@ -382,11 +379,13 @@ auto insert_treated_tokens (
   auto && begin = track.begin ;
   auto && end   = std::prev(track.end) ;
   
-  std::stringstream ss ;
-  ss << " insert into tkn_treated_token_interval (begin_id, end_id) values ("
-     << (*begin).id << ", " << (*end).id << ");" ;
+  auto query = (boost::format(
+    " insert into tkn_treated_token_interval "
+    " (begin_id, end_id) values (%d, %d);\n")
+    % (*begin).id 
+    % (*end).id) ;
   
-  return sia::db::ddl(db, ss.str()) ;
+  return sia::db::ddl(db, query.str()) ;
 }
 
 

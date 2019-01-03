@@ -10,7 +10,7 @@ auto parse_properties_file (
 {
   auto file = std::ifstream(filename, std::ios::in) ;
   properties_t properties ;
-  
+    
   if (file.is_open())
   {
     auto const & delimiter = "=" ;

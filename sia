@@ -1,11 +1,13 @@
 export PATH=.:$PATH
-./sia_configure_compiler --config sia.properties
-./sia_prepare_database
-./tkn_inject_file
-./tkn_tokenize
-./stx_detect_types
-./stx_detect_functions
-./stx_detect_function_cases
-./stx_show_errors
+python python/sia_configure_compiler.py --config sia.properties
+python python/sia_prepare_database.py
+python python/tkn_inject_file.py
+python python/tkn_tokenize.py
+python python/stx_detect_types.py
+
+#./stx_detect_types
+#./stx_detect_functions
+#./stx_detect_function_cases
+#./stx_show_errors
 
 

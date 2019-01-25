@@ -1,0 +1,56 @@
+import ply.lex as lex
+
+# SIA LEXER
+
+lexems = {
+    'number': r'\d+',
+    'equal': r'=',
+    'colon': ':',
+    'comma': r',',
+    'lbracket': r'\(',
+    'rbracket': r'\)',
+    'lbrace': r'\{',
+    'rbrace': r'\}',
+    'point': r'\.',
+}
+
+reserved = {
+    'type': 'type',
+    'casefn': 'casefn',
+    'fn': 'fn',
+    'alias': 'alias'
+}
+
+tokens = ['name'] + [l for l in lexems] + [r for r in reserved.values()]
+
+t_number = lexems['number']
+t_equal = lexems['equal']
+t_colon = lexems['colon']
+t_comma = lexems['comma']
+t_lbracket = lexems['lbracket']
+t_rbracket = lexems['rbracket']
+t_lbrace = lexems['lbrace']
+t_rbrace = lexems['rbrace']
+t_point = lexems['point']
+
+
+def t_name(t):
+    r'[a-zA-Z_]([0-9a-zA-Z_$])*'
+    t.type = reserved.get(t.value, 'name')
+    return t
+
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+
+
+t_ignore = ' \t'
+
+
+def t_error(t):
+    print(f"Illegal character '{t.value[0]}'")
+    t.lexer.skip(1)
+
+
+lexer = lex.lex()

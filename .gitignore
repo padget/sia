@@ -56,3 +56,7 @@ dkms.conf
 lib/include/sqlite3.c
 
 .vscode/
+
+python/parser.out
+python/parsertab.py 
+**__pycache__

@@ -20,7 +20,7 @@ def dao_detect_type_boundaries(sqlcursor):
 
   sqlcursor.execute(query)
 
-
+  
 if __name__ == '__main__':
   conn   = sqlite3.connect('lol2.sia.db')
   cursor = conn.cursor()

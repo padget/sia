@@ -1,0 +1,10 @@
+def production(rule: str):
+    '''
+    Used to decorate a function p_* to change is __doc__ with the bnf rule
+    passed in argument to enable ply to introspects on this decorated function
+    as production
+    '''
+    def decorate(fprod):
+        fprod.__doc__ = rule
+        return fprod
+    return decorate

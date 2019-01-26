@@ -57,6 +57,6 @@ lib/include/sqlite3.c
 
 .vscode/
 
-python/parser.out
-python/parsertab.py 
-**__pycache__
+*parser.out
+*parsetab.py 
+*__pycache__

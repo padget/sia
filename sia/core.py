@@ -8,3 +8,9 @@ def production(rule: str):
         fprod.__doc__ = rule
         return fprod
     return decorate
+
+def token(rx: str):
+    def decorate(ftoken):
+        ftoken.__doc__ = rx 
+        return ftoken
+    return decorate

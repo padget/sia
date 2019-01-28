@@ -42,6 +42,7 @@ start = 'sia'
 @production('empty :')
 def p_empty(yprod):
     pass
+    
 
 @production('sia : declarations')
 def p_sia(yprod):
@@ -68,11 +69,9 @@ parser = yacc.yacc()
 text = '''
 type person(name : str, firstname: str)
 type person(name : str, firstname: str)
-fn to_name(p: person):str {
+fn to_name(p: person) -> str :
     alias p = (p, p, 12, (toto, 12).add()).to_string()
-    ().to_strint()
-}
-casefn name(12, 12, 12){12}
+    return lkqjsdkl
 '''
 
 print(parser.parse(text, lexer=lexer))

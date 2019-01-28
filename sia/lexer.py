@@ -1,4 +1,5 @@
 import ply.lex as lex
+from core import token
 
 # SIA LEXER
 
@@ -12,16 +13,18 @@ lexems = {
     'lbrace': r'\{',
     'rbrace': r'\}',
     'point': r'\.',
+    'arrow': r'\->'
 }
 
 reserved = {
     'type': 'type',
     'casefn': 'casefn',
     'fn': 'fn',
-    'alias': 'alias'
+    'alias': 'alias',
+    'return': 'return'
 }
 
-tokens = ['name'] + [l for l in lexems] + [r for r in reserved.values()]
+tokens = ['indent', 'name'] + [l for l in lexems] + [r for r in reserved.values()]
 
 t_number = lexems['number']
 t_equal = lexems['equal']
@@ -32,20 +35,25 @@ t_rbracket = lexems['rbracket']
 t_lbrace = lexems['lbrace']
 t_rbrace = lexems['rbrace']
 t_point = lexems['point']
+t_arrow = lexems['arrow']
 
 
+@token(r'[a-zA-Z_]([0-9a-zA-Z_])*')
 def t_name(t):
-    r'[a-zA-Z_]([0-9a-zA-Z_$])*'
     t.type = reserved.get(t.value, 'name')
     return t
 
-
+@token(r'\n+')
 def t_newline(t):
-    r'\n+'
     t.lexer.lineno += len(t.value)
 
+@token(r'^[ ]+')
+def t_indent(t):
+    return t
 
-t_ignore = ' \t'
+@token(r'\s+')
+def t_ignored(t):
+    pass
 
 
 def t_error(t):
@@ -53,4 +61,6 @@ def t_error(t):
     t.lexer.skip(1)
 
 
-lexer = lex.lex()
+import re
+lexer = lex.lex(reflags=re.MULTILINE)
+

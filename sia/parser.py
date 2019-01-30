@@ -12,48 +12,54 @@ from core import production
 #  - params
 from parser_expression import *
 
-# Import des regles de production pour les args : 
+# Import des regles de production pour les args :
 #   - args
 #   - arg
 from parser_args import *
 
-# Import des regles de production pour la déclaration d'un type : 
+# Import des regles de production pour la déclaration d'un type :
 #   - type declaration
 from parser_type_declaration import *
 
-# Import des regles de production pour un alias : 
+# Import des regles de production pour un alias :
 #   - alias
 from parser_alias_statement import *
 
-# Import des regles de production pour la déclaration d'une fonction : 
+# Import des regles de production pour la déclaration d'une fonction :
 #   - fn declaration
 #   - aliases
 from parser_fn_declaration import *
 
-# Import des regles de production pour la déclaration d'une case fonction : 
+# Import des regles de production pour la déclaration d'une case fonction :
 #   - casefn declaration
 from parser_casefn_declaration import *
 
+import parser_ast as ast
 
 # SIA PARSER
 
 start = 'sia'
 
+
 @production('empty :')
 def p_empty(yprod):
     pass
-    
+
 
 @production('sia : declarations')
 def p_sia(yprod):
-    yprod[0] = 12
+    from parser_ast import sia
+    yprod[0] = sia(yprod[1])
 
 
-@production('''
-    declarations : declaration declarations
-                 | empty''')
+@production('declarations : declaration declarations')
 def p_declarations(yprod):
-    pass
+    yprod[0] = [yprod[1]] + yprod[2]
+
+
+@production('declarations : empty')
+def p_declarations_empty(yprod):
+    yprod[0] = []
 
 
 @production('''
@@ -61,7 +67,7 @@ def p_declarations(yprod):
                 | fn_declaration
                 | casefn_declaration''')
 def p_declaration(yprod):
-    pass
+    yprod[0] = yprod[1]
 
 
 parser = yacc.yacc()
@@ -71,7 +77,7 @@ type person(name : str, firstname: str)
 type person(name : str, firstname: str)
 fn to_name(p: person) -> str :
     alias p = (p, p, 12, (toto, 12).add()).to_string()
-    return lkqjsdkl
+    aaaa
 '''
 
 print(parser.parse(text, lexer=lexer))

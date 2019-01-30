@@ -1,20 +1,27 @@
 from core import production
 
 
-@production('''
-    args : arg args_tail 
-         | empty''')
+@production('args : arg args_tail')
 def p_args(yprod):
-    pass
+    yprod[0] = [yprod[1]] + yprod[2]
 
 
-@production('''
-    args_tail : comma arg args_tail
-              | empty''')
+@production('args : empty')
+def p_args_empty(yprod):
+    yprod[0] = []
+
+
+@production('args_tail : comma arg args_tail')
 def p_args_tail(yprod):
-    pass
+    yprod[0] = [yprod[2]] + yprod[3]
+
+
+@production('args_tail : empty')
+def p_args_tail_empty(yprod):
+    yprod[0] = []
 
 
 @production('arg : name colon name')
 def p_arg(yprod):
-    pass
+    from parser_ast import arg
+    yprod[0] = arg(aname=yprod[1], tname=yprod[3])

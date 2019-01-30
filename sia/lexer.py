@@ -10,8 +10,6 @@ lexems = {
     'comma': r',',
     'lbracket': r'\(',
     'rbracket': r'\)',
-    'lbrace': r'\{',
-    'rbrace': r'\}',
     'point': r'\.',
     'arrow': r'\->'
 }
@@ -21,10 +19,9 @@ reserved = {
     'casefn': 'casefn',
     'fn': 'fn',
     'alias': 'alias',
-    'return': 'return'
 }
 
-tokens = ['indent', 'name'] + [l for l in lexems] + [r for r in reserved.values()]
+tokens = ['indent', 'name', 'string'] + [l for l in lexems] + [r for r in reserved.values()]
 
 t_number = lexems['number']
 t_equal = lexems['equal']
@@ -32,8 +29,6 @@ t_colon = lexems['colon']
 t_comma = lexems['comma']
 t_lbracket = lexems['lbracket']
 t_rbracket = lexems['rbracket']
-t_lbrace = lexems['lbrace']
-t_rbrace = lexems['rbrace']
 t_point = lexems['point']
 t_arrow = lexems['arrow']
 
@@ -41,6 +36,11 @@ t_arrow = lexems['arrow']
 @token(r'[a-zA-Z_]([0-9a-zA-Z_])*')
 def t_name(t):
     t.type = reserved.get(t.value, 'name')
+    return t
+
+@token(r'"[^"]*"')
+def t_string(t):
+    print('je viens de voir une string')
     return t
 
 @token(r'\n+')

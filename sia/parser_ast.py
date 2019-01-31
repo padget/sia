@@ -6,11 +6,11 @@ class sia:
     declarations: list
 
 
-class declaration:
+class expression:
     pass
 
 
-class expression:
+class declaration(expression):
     pass
 
 

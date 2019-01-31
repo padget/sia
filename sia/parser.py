@@ -75,9 +75,14 @@ parser = yacc.yacc()
 text = '''
 type person(name : str, firstname: str)
 type person(name : str, firstname: str)
-fn to_name(p: person) -> str :
+fn to_name(p: person) -> str {
     alias p = (p, p, 12, (toto, 12).add()).to_string()
-    aaaa
+    alias toto = fn def() -> person {
+        p
+    }
+
+    toto
+}
 '''
 
 print(parser.parse(text, lexer=lexer))

@@ -24,6 +24,11 @@ def p_expression_fn_call(yprod):
     yprod[0] = yprod[1]
 
 
+@production('expression : fn_declaration')
+def p_expression_fn_declaration(yprod):
+    yprod[0] = yprod[1]
+
+
 @production('fn_call : lbracket params rbracket point name lbracket rbracket')
 def p_fn_call(yprod):
     from parser_ast import fn_call

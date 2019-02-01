@@ -36,6 +36,18 @@ class name(expression):
 
 
 @dataclass
+class member_access(expression):
+    expr: expression
+    member: name
+
+
+@dataclass
+class spread_fn_call(expression):
+    expr: expression
+    fname: name
+
+
+@dataclass
 class fn_declaration(declaration):
     fname: name
     args: list

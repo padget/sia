@@ -29,6 +29,33 @@ def p_expression_fn_declaration(yprod):
     yprod[0] = yprod[1]
 
 
+@production('expression : member_access')
+def p_expression_member_access(yprod):
+    yprod[0] = yprod[1]
+
+
+@production('member_access : expression point name')
+def p_member_access(yprod):
+    from parser_ast import member_access
+    yprod[0] = member_access(expr=yprod[1], member=yprod[3])
+
+
+@production('expression : member_access')
+def p_expression_member_access(yprod):
+    yprod[0] = yprod[1]
+
+
+@production('expression : spread_fn_call')
+def p_expression_spread_fn_call(yprod):
+    yprod[0] = yprod[1]
+
+
+@production('spread_fn_call : expression point point name lbracket rbracket')
+def p_member_spread_fn_call(yprod):
+    from parser_ast import spread_fn_call
+    yprod[0] = spread_fn_call(expr=yprod[1], fname=yprod[4])
+
+
 @production('fn_call : lbracket params rbracket point name lbracket rbracket')
 def p_fn_call(yprod):
     from parser_ast import fn_call

@@ -78,10 +78,12 @@ type person(name : str, firstname: str)
 fn to_name(p: person) -> str {
     alias p = (p, p, 12, (toto, 12).add()).to_string()
     alias toto = fn def() -> person {
-        p
+        p.toto
     }
 
-    toto
+
+
+    toto..name()
 }
 '''
 

@@ -28,7 +28,6 @@ def p_expression_fn_call(yprod):
 def p_expression_fn_declaration(yprod):
     yprod[0] = yprod[1]
 
-
 @production('expression : member_access')
 def p_expression_member_access(yprod):
     yprod[0] = yprod[1]
@@ -50,7 +49,7 @@ def p_expression_spread_fn_call(yprod):
     yprod[0] = yprod[1]
 
 
-@production('spread_fn_call : expression point point name lbracket rbracket')
+@production('spread_fn_call : expression colon colon name lbracket rbracket')
 def p_member_spread_fn_call(yprod):
     from parser_ast import spread_fn_call
     yprod[0] = spread_fn_call(expr=yprod[1], fname=yprod[4])

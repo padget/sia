@@ -81,9 +81,9 @@ fn to_name(p: person) -> str {
         p.toto
     }
 
-
-
-    toto..name()
+    fn def() -> person {
+        p.toto
+    }::name()
 }
 '''
 

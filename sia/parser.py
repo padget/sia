@@ -87,4 +87,11 @@ fn to_name(p: person) -> str {
 }
 '''
 
-print(parser.parse(text, lexer=lexer))
+import pyno 
+data = pyno.open_pyno('d:/pyno.db')
+from parser_ast import type_declaration, fn_declaration
+for decl in parser.parse(text, lexer=lexer).declarations:
+    if isinstance(decl, type_declaration):
+        data.insert_one(pyno.PynoEntry(decl.tname, 'type', decl))
+    elif isinstance(decl, fn_declaration):
+        data.insert_one(pyno.PynoEntry(decl.fname, 'type', decl))

@@ -3,10 +3,10 @@ from core import production
 
 @production('''fn_declaration : fn_signature lbrace fn_lines expression rbrace''')
 def p_fn_declaration(yprod):
-    from parser_ast import fn_declaration, alias, expression
+    from parser_ast import FnDeclaration, Alias, Expression, Name
     aliases = yprod[3]
 
-    yprod[0] = fn_declaration(
+    yprod[0] = FnDeclaration(
         fname=yprod[1][0],
         args=yprod[1][1],
         rtype=yprod[1][2],
@@ -16,7 +16,8 @@ def p_fn_declaration(yprod):
 
 @production('''fn_signature : fn name lbracket args rbracket arrow name''')
 def p_fn_signature(yprod):
-    yprod[0] = (yprod[2], yprod[4], yprod[7])
+    from parser_ast import Name
+    yprod[0] = (Name(value=yprod[2]), yprod[4], Name(value=yprod[7]))
 
 
 @production('fn_lines : alias_statement fn_lines')

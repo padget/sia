@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from sqlite3 import Connection, connect, Cursor, Error
 from enum import Enum, auto
 from pickle import dumps, loads
+from typing import Tuple, Any, Callable, List
 
 
 class PynoPhase(Enum):
@@ -16,56 +17,140 @@ class PynoPhase(Enum):
 
 
 class PynoEntry:
-    def __init__(self, id, tp, data):
+    def __init__(self, id: str, tp: str, data: object):
+        '''Initialize a new PynoEntry
+
+        Args:
+            id: An unique id to identify the data
+            tp: A string that represents the type of the data
+            data: Any python object to save under id and tp
+        '''
+
         self.id = id
         self.tp = tp
         self.data = data
 
     @staticmethod
-    def from_row(row):
+    def from_row(row: Tuple[str, str, Any]):
+        '''Build a new PynoEntry from a row
+
+        Args:
+            row: A tuple where we can fin the tree args
+            needed in the PynoEntry.__init__(...) function.
+
+        Returns:
+            A new instance of PynoEntry built with an id
+            a type and a data
+        '''
+
         return PynoEntry(row[0], row[1], loads(row[2]))
 
 
 class Pyno:
-    def __init__(self, connection):
+    def __init__(self, connection: Connection):
+        '''Initialize a new instance of Pyno
+
+        A Pyno instance represents a special sqlite3
+        format that behaves like a NoSql dictionnary
+        database.
+
+        Args:
+            connection: a sqlite3 connection
+        '''
+
         self.connection = connection
 
-    def execute_query(self, query, params=None) -> Cursor:
+    def __del__(self):
+        '''Destruction of Pyno object
+
+        Close the remaining connection if needed
+        '''
+
+        if self.connection is not None:
+            self.connection.close()
+
+    def save(self):
+        '''Save all the objects in the buffer
+
+        Commit all items in the temporary buffer
+        into the persistant support
+        '''
+
+        self.connection.commit()
+
+    def __execquery(self, query, params=None) -> Cursor:
         try:
             return self.connection.execute(query, params)
         except Error as e:
             print(f"An error occured {e}")
 
-    def get_one(self, id: str) -> PynoEntry:
-        query = 'select p.id, p.type, p.data from pyno as p where p.id = ?'
-        one = self.execute_query(query, [id])
+    def __getone(self, id: str) -> PynoEntry:
+        query = 'select * from pyno as p where p.id = ?'
+        one = self.__execquery(query, [id])
 
         if one is not None:
             one = one.fetchone()
 
         return PynoEntry.from_row(one) if one else None
 
-    def insert_one(self, e: PynoEntry) -> bool:
-        query = 'insert into pyno(id, type, data) values (?, ?, ?)'
-        self.execute_query(query, [e.id, e.tp, dumps(e.data)])
+    def __getall(self, tp: str) -> List[PynoEntry]:
+        '''Returns all items from the Pyno that matches tp
 
-    def remove_one(self, id: str):
-        query = 'delete from pyno where id = ?'
-        self.execute_query(query, [id])
+        Args:
+            tp: a string that represents the wanted class of items
 
-    def save(self):
-        self.connection.commit()
+        Returns:
+            A sequence of the items (PynoEntry) from Pyno
+            dictionnary that matches the tp parameter
+        '''
 
-    def get_all_of(self, tp: str, func):
         query = 'select * from pyno where type = ?'
-        for e in self.execute_query(query, [tp]):
+        for e in self.__execquery(query, [tp]):
             yield PynoEntry.from_row(e)
+
+    def __getitem__(self, key: tuple):
+        '''Returns items in function of key parameter
+
+        Args:
+            key: A tuple of keys : one str for id and
+            one str for type
+
+        Returns:
+            An item if only id is set or a list of items
+            if type is set and not id
+        '''
+
+        if len(key) == 2:
+            if key[0]:
+                return self.__getone(key[0])
+            if key[1] and not key[0]:
+                return self.__getall(key[1])
+            if not key[0] and not key[1]:
+                return None
+
+    def __setone(self, e: PynoEntry) -> bool:
+        query = 'insert into pyno values (?, ?, ?)'
+        id = e.id
+        tp = e.tp
+        data = dumps(e.data)
+        self.__execquery(query, [id, tp, data])
+
+    def __setitem__(self, key: tuple, data: Any):
+        if len(key) == 2 and key[0] and key[1]:
+            e = PynoEntry(key[0], key[1], data)
+            self.__setone(e)
+
+    def __delone(self, id: str):
+        query = 'delete from pyno where id = ?'
+        self.__execquery(query, [id])
+
+    def __delitem__(self, id: str):
+        self.__delone(id)
 
 
 def open_pyno(name: str) -> Pyno:
     connection = connect(name)
-    cursor = connection.cursor()
-    cursor.executescript('''
+    connection.executescript('''
         CREATE TABLE IF NOT EXISTS pyno (
             id text primary key,
             type text not null,

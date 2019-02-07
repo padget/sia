@@ -23,5 +23,5 @@ def p_args_tail_empty(yprod):
 
 @production('arg : name colon name')
 def p_arg(yprod):
-    from parser_ast import arg
-    yprod[0] = arg(aname=yprod[1], tname=yprod[3])
+    from parser_ast import Arg, Name
+    yprod[0] = Arg(aname=Name(value=yprod[1]), tname=Name(value=yprod[3]))

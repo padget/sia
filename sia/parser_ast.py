@@ -2,83 +2,83 @@ from dataclasses import dataclass
 
 
 @dataclass
-class sia:
+class Sia:
     declarations: list
 
 
-class expression:
+class Expression:
     pass
 
 
-class declaration(expression):
+class Declaration(Expression):
     pass
 
 
 @dataclass
-class fn_call(expression):
-    fname: str
-    params: list
-
-
-@dataclass
-class number(expression):
+class Number(Expression):
     value: int
 
 
 @dataclass
-class string(expression):
+class String(Expression):
     value: str
 
 
 @dataclass
-class name(expression):
+class Name(Expression):
     value: str
 
 
 @dataclass
-class member_access(expression):
-    expr: expression
-    member: name
+class FnCall(Expression):
+    fname: Name
+    params: list
 
 
 @dataclass
-class spread_fn_call(expression):
-    expr: expression
-    fname: name
+class MemberAccess(Expression):
+    expr: Expression
+    member: Name
 
 
 @dataclass
-class fn_declaration(declaration):
-    fname: name
+class SpreadFnCall(Expression):
+    expr: Expression
+    fname: Name
+
+
+@dataclass
+class FnDeclaration(Declaration):
+    fname: Name
     args: list
-    rtype: name
+    rtype: Name
     aliases: list
-    retexpr: expression
+    retexpr: Expression
 
 
 @dataclass
-class casefn_declaration(declaration):
+class CaseFnDeclaration(Declaration):
     pass
 
 
 @dataclass
-class type_declaration(declaration):
-    tname: str
+class TypeDeclaration(Declaration):
+    tname: Name
     args: list
 
 
 @dataclass
-class arg:
-    aname: name
-    tname: name
+class Arg:
+    aname: Name
+    tname: Name
 
 
 @dataclass
-class param:
-    expr: expression
+class Param:
+    expr: Expression
 
 
 @dataclass
-class alias:
-    alname: name
-    expr: expression
+class Alias:
+    alname: Name
+    expr: Expression

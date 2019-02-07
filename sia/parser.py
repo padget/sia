@@ -1,3 +1,6 @@
+from parser_ast import Name
+import pyno
+from parser_ast import TypeDeclaration, FnDeclaration, Expression
 import ply.yacc as yacc
 
 # set current lexer
@@ -5,36 +8,13 @@ from lexer import lexer
 # import tokens from lexer
 from lexer import tokens
 
-from core import production
-
-# Import des regles de production pour une expression :
-#  - function call
-#  - params
+from core import production, _, new
 from parser_expression import *
-
-# Import des regles de production pour les args :
-#   - args
-#   - arg
 from parser_args import *
-
-# Import des regles de production pour la déclaration d'un type :
-#   - type declaration
 from parser_type_declaration import *
-
-# Import des regles de production pour un alias :
-#   - alias
 from parser_alias_statement import *
-
-# Import des regles de production pour la déclaration d'une fonction :
-#   - fn declaration
-#   - aliases
 from parser_fn_declaration import *
-
-# Import des regles de production pour la déclaration d'une case fonction :
-#   - casefn declaration
 from parser_casefn_declaration import *
-
-import parser_ast as ast
 
 # SIA PARSER
 
@@ -48,8 +28,8 @@ def p_empty(yprod):
 
 @production('sia : declarations')
 def p_sia(yprod):
-    from parser_ast import sia
-    yprod[0] = sia(yprod[1])
+    from parser_ast import Sia
+    yprod[0] = Sia(yprod[1])
 
 
 @production('declarations : declaration declarations')
@@ -74,7 +54,9 @@ parser = yacc.yacc()
 
 text = '''
 type person(name : str, firstname: str)
-type person(name : str, firstname: str)
+type person2(name : str, firstname: str)
+type person3(name : str, firstname: str)
+type person4(name : str, firstname: str)
 fn to_name(p: person) -> str {
     alias p = (p, p, 12, (toto, 12).add()).to_string()
     alias toto = fn def() -> person {
@@ -87,11 +69,40 @@ fn to_name(p: person) -> str {
 }
 '''
 
-import pyno 
 data = pyno.open_pyno('d:/pyno.db')
-from parser_ast import type_declaration, fn_declaration
-for decl in parser.parse(text, lexer=lexer).declarations:
-    if isinstance(decl, type_declaration):
-        data.insert_one(pyno.PynoEntry(decl.tname, 'type', decl))
-    elif isinstance(decl, fn_declaration):
-        data.insert_one(pyno.PynoEntry(decl.fname, 'type', decl))
+declarations = parser.parse(text, lexer=lexer).declarations
+
+
+class PynoFnDeclaration(pyno.PynoEntry):
+    def __init__(self, fn: FnDeclaration):
+        super().__init__(fn.fname.value, 'function', fn)
+
+
+class PynoTypeDeclaration(pyno.PynoEntry):
+    def __init__(self, tp: TypeDeclaration):
+        super().__init__(tp.tname.value, 'type', tp)
+
+
+pynoDeclarations = {
+    FnDeclaration: PynoFnDeclaration,
+    TypeDeclaration: PynoTypeDeclaration
+}
+
+
+for decl in declarations:
+    pynodecl = new(pynoDeclarations[decl.__class__], decl)
+    data[(pynodecl.id, 'type')] = pynodecl
+
+data.save()
+
+print('avant le del')
+for tp in [tp.data for tp in data[(_, 'type')]]:
+    print(tp)
+
+
+del data['person']
+
+print('après le del')
+
+for tp in [tp.data for tp in data[(_, 'type')]]:
+    print(tp)

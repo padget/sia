@@ -60,3 +60,5 @@ lib/include/sqlite3.c
 *parser.out
 *parsetab.py 
 *__pycache__
+
+.idea/*

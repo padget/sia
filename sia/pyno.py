@@ -4,16 +4,9 @@
 # un service de stockage de
 # de type dictionnaire NoSql
 
-from dataclasses import dataclass
 from sqlite3 import Connection, connect, Cursor, Error
-from enum import Enum, auto
 from pickle import dumps, loads
 from typing import Tuple, Any, Callable, List
-
-
-class PynoPhase(Enum):
-    READ = auto()
-    WRITE = auto()
 
 
 class PynoEntry:
@@ -77,6 +70,14 @@ class Pyno:
         '''
 
         self.connection.commit()
+
+    def insert(self, entry: PynoEntry):
+        """Insert a new entry into the dictionary
+
+        :param entry: entry to insert
+        """
+
+        self[(entry.id, entry.tp)] = entry.data
 
     def __execquery(self, query, params=None) -> Cursor:
         try:

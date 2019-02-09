@@ -1,6 +1,6 @@
 import unittest
-from unittest.mock.
 
+from core.core import pipe
 from sia.core.core import _, token, new
 
 
@@ -37,6 +37,25 @@ class TestCore(unittest.TestCase):
                 self.x = x
 
         self.assertEqual(new(AClass, 12).x, 12)
+
+    def test_core_pipe_function(self):
+        '''
+        Test if three piped add2 on 0 is equal to 6
+        '''
+
+        add2 = lambda i: i + 2
+
+        self.assertEqual(pipe(add2, add2, add2)(0), 6)
+
+    @unittest.expectedFailure
+    def test_core_pipe_function_fail(self):
+        '''
+        Test if three piped add2 on 0 is not equal to 6
+        '''
+
+        add2 = lambda i: i + 2
+
+        self.assertEqual(pipe(add2, add2, add2)(0), 3)
 
 
 if __name__ == '__main__':

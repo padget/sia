@@ -1,15 +1,16 @@
-# Pyno a pour but de fournir
-# une asbtraction de sqlite
-# et de pickle afin de fournier
-# un service de stockage de
+# Pyno a pour but de fournir une asbtraction de sqlite
+# et de pickle afin de fournier un service de stockage de
 # de type dictionnaire NoSql
 
 from sqlite3 import Connection, connect, Cursor, Error
 from pickle import dumps, loads
-from typing import Tuple, Any, Callable, List
+from typing import Tuple, Any, List
 
 
 class PynoEntry:
+    '''
+
+    '''
     def __init__(self, id: str, tp: str, data: object):
         '''Initialize a new PynoEntry
 
@@ -80,12 +81,28 @@ class Pyno:
         self[(entry.id, entry.tp)] = entry.data
 
     def __execquery(self, query, params=None) -> Cursor:
+        ''' Executes query passed by parameter with
+
+        params
+
+        :param query: query to execute
+        :param params: parameters of the query (potentially None)
+        :return: the current instance of Cursor
+        '''
+
         try:
             return self.connection.execute(query, params)
         except Error as e:
             print(f"An error occured {e}")
 
     def __getone(self, id: str) -> PynoEntry:
+        ''' Returns the object whose id is same as the id passed
+        by parameter
+
+        :param id: to identify the wanted object
+        :return: the object with id
+        '''
+
         query = 'select * from pyno as p where p.id = ?'
         one = self.__execquery(query, [id])
 
@@ -129,7 +146,12 @@ class Pyno:
             if not key[0] and not key[1]:
                 return None
 
-    def __setone(self, e: PynoEntry) -> bool:
+    def __setone(self, e: PynoEntry):
+        '''Inserts one entry into the dictionary
+
+        :param e: entry to insert
+        '''
+
         query = 'insert into pyno values (?, ?, ?)'
         id = e.id
         tp = e.tp
@@ -142,6 +164,11 @@ class Pyno:
             self.__setone(e)
 
     def __delone(self, id: str):
+        '''Deletes the object whose id is id
+
+        :param id: id of the object to delete
+        '''
+
         query = 'delete from pyno where id = ?'
         self.__execquery(query, [id])
 

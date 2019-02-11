@@ -51,7 +51,6 @@ def t_name(t):
 
 @token(r'"[^"]*"')
 def t_string(t):
-    print('je viens de voir une string')
     return t
 
 
@@ -226,11 +225,6 @@ def p_member_access(yprod):
     yprod[0] = MemberAccess(expr=yprod[1], member=Name(value=yprod[3]))
 
 
-@production('expression : member_access')
-def p_expression_member_access(yprod):
-    yprod[0] = yprod[1]
-
-
 @production('expression : spread_fn_call')
 def p_expression_spread_fn_call(yprod):
     yprod[0] = yprod[1]
@@ -276,8 +270,9 @@ def p_simple_expression_string(yprod):
     yprod[0] = String(value=yprod[1])
 
 
-@production('simple_expression : name')
+@production('simple_expression : name | empty')
 def p_simple_expression_name(yprod):
+    print('coucou')
     yprod[0] = Name(value=yprod[1])
 
 
@@ -303,8 +298,6 @@ def p_simple_params_tail_empty(yprod):
 
 @production('''fn_declaration : fn_signature lbrace fn_lines expression rbrace''')
 def p_fn_declaration(yprod):
-    aliases = yprod[3]
-
     yprod[0] = FnDeclaration(
         fname=yprod[1][0],
         args=yprod[1][1],

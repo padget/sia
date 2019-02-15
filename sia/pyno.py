@@ -11,6 +11,7 @@ class PynoEntry:
     '''
 
     '''
+
     def __init__(self, id: str, tp: str, data: object):
         '''Initialize a new PynoEntry
 

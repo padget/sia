@@ -6,6 +6,34 @@ letters = ascii_letters + '_'
 alphanums = letters + digits
 
 
+class StringView:
+    '''
+    Une string view est une représentation logique
+    d'une string en cours de lecture. La position de
+    lecture est donc conservée. Une StringView conserve
+    aussi la longueur de la chaine ainsi que la valeur
+    même de la chaine
+    '''
+
+    def __init__(self, pos: int, value: str):
+        self.__pos = pos
+        self.__value = value
+        self.__len = len(value) if value else 0
+
+    def get_range(self):
+        return range(self.__pos, self.__len)
+
+    def clone(self, pos=None, value=None):
+        return StringView(pos or self.__pos, value or self.__value)
+
+
+class Token:
+    def __init__(self, value: str, name: str, view: StringView):
+        self.value = value
+        self.name = name
+        self.view = view
+
+
 def get_terminals(module_name):
     module = __import__(module_name)
     for name in dir(module):
@@ -31,48 +59,6 @@ def get_ignore(module_name):
         return None
 
 
-class StringView:
-    def __init__(self, pos: int, value: str):
-        self.pos = pos
-        self.value = value
-        self.len = len(value) if value else 0
-
-    def get_range(self):
-        return range(self.pos, self.len)
-
-    def clone(self, pos=None, value=None):
-        return StringView(pos or self.pos, value or self.value)
-
-
-class Token:
-    def __init__(self, value: str, name: str, view: StringView):
-        self.value = value
-        self.name = name
-        self.view = view
-
-    def next_token(self, view: StringView, name: str):
-        return Token.from_view(view, name, self.view.pos)
-
-    @staticmethod
-    def first(input: str):
-        return Token('', None, StringView(0, input))
-
-    @staticmethod
-    def from_view(view: StringView, name: str, ifrom: int):
-        value = view.value[ifrom:view.pos] \
-            if ifrom == view.pos \
-            else view.value[ifrom]
-        return Token(value, name, view)
-
-    @staticmethod
-    def error(view: StringView):
-        return Token.from_view(view, 'error', view.pos)
-
-    @staticmethod
-    def ignore(view: StringView):
-        return Token.from_view(view, 'ignore', view.pos)
-
-
 class Grammar:
     def __init__(self, terminals=[]):
         self.terminals = terminals
@@ -85,7 +71,7 @@ def terminal(detect_token):
         @functools.wraps(react)
         def wrapper(view: StringView):
             new_view: StringView = detect_token(view)
-            token = Token.from_view(new_view.pos, tname, view.pos)
+            token = Token.from_view(new_view.__pos, tname, view.pos)
 
             if new_view.pos > view.pos:
                 react(token)
@@ -177,7 +163,6 @@ def tokens(input: str, module_name: str):
 
 
 if __name__ == '__main__':
-
     value = 'coucou je65465q4sd__ suis un nom^^^^'
 
     tokens(value, __name__)

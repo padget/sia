@@ -1,8 +1,7 @@
-import functools
 from string import ascii_letters, digits
-import ply
 
-from sia.grammar.lexer import terminal, ignore, ignore_function, error_function, terminal_functions
+from sia.grammar.lexer import terminal, ignore, ignore_function, error_function, \
+    terminal_functions
 from sia.grammar.string_view import StringView
 from sia.grammar.token import Token
 
@@ -73,6 +72,5 @@ def tokens(input: str, module):
         if current_pos == view.pos():
             error(Token(view.char(), 'error', view))
             view = view.clone(pos=view.pos() + 1)
-
 
 

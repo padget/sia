@@ -1,0 +1,7 @@
+[dev-packages]
+
+[packages]
+fre = "*"
+
+[requires]
+python_version = "3.7"

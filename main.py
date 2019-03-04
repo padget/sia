@@ -1,11 +1,16 @@
-import sys
-
-from sia.grammar.definition2 import tokens
+from sia.grammar.definition import parser, lexer
+from sia.pyno import open_pyno
+from sia.steps.check_types import check_types
+from sia.steps.fn_table import save_fns_table
+from sia.steps.types_table import save_types_table
 
 if __name__ == '__main__':
-    import sia.grammar.definition2 as definition
 
-    value = 'coucou je65465q4sd__ suis un nom'
+    with open('main.sia', 'r') as file:
+        inp = file.read()
 
-    for token in tokens(value, definition):
-        print(token.value)
+    parse_result = parser.parse(input=inp, lexer=lexer)
+    py = open_pyno('local_dev')
+    save_fns_table(parse_result, py)
+    save_types_table(parse_result, py)
+    check_types(py)

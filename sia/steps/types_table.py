@@ -4,13 +4,13 @@ from sia.pyno import PynoEntry, Pyno
 
 
 def save_types_table(sia: Sia, types: Pyno):
-    ''' Save all found type declarations
+    """ Save all found type declarations
 
     :param sia: Sia object where search the type
                 declarations
     :param types: The Pyno dictionary to store the
                   type declarations
-    '''
+    """
 
     pipe(
         to(lambda sia: sia.declarations),

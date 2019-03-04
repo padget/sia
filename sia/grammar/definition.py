@@ -1,10 +1,9 @@
-from sia.core.core import production, _, new, token
+from dataclasses import dataclass
 
 import ply.lex as lex
 import ply.yacc as yacc
 
-from dataclasses import dataclass
-
+from sia.core.core import production, token
 
 # SIA LEXER
 
@@ -26,10 +25,11 @@ reserved = {
     'casefn': 'casefn',
     'fn': 'fn',
     'alias': 'alias',
+    'native': 'native'
 }
 
 tokens = ['name', 'string'] + [l for l in lexems] + \
-    [r for r in reserved.values()]
+         [r for r in reserved.values()]
 
 t_number = lexems['number']
 t_equal = lexems['equal']
@@ -128,6 +128,13 @@ class FnDeclaration(Declaration):
 
 
 @dataclass
+class FnDeclarationNative(Declaration):
+    fname: Name
+    args: list
+    rtype: Name
+
+
+@dataclass
 class CaseFnDeclaration(Declaration):
     pass
 
@@ -185,7 +192,8 @@ def p_arg(yprod):
     yprod[0] = Arg(aname=Name(value=yprod[1]), tname=Name(value=yprod[3]))
 
 
-@production('casefn_declaration : casefn name lbracket simple_params rbracket colon expression  ')
+@production(
+    'casefn_declaration : casefn name lbracket simple_params rbracket colon expression  ')
 def p_casefn_declaration(yprod):
     pass
 
@@ -270,7 +278,7 @@ def p_simple_expression_string(yprod):
     yprod[0] = String(value=yprod[1])
 
 
-@production('simple_expression : name | empty')
+@production('simple_expression : name')
 def p_simple_expression_name(yprod):
     print('coucou')
     yprod[0] = Name(value=yprod[1])
@@ -296,7 +304,8 @@ def p_simple_params_tail_empty(yprod):
     yprod[0] = []
 
 
-@production('''fn_declaration : fn_signature lbrace fn_lines expression rbrace''')
+@production(
+    '''fn_declaration : fn_signature lbrace fn_lines expression rbrace''')
 def p_fn_declaration(yprod):
     yprod[0] = FnDeclaration(
         fname=yprod[1][0],
@@ -304,6 +313,14 @@ def p_fn_declaration(yprod):
         rtype=yprod[1][2],
         aliases=yprod[3],
         retexpr=yprod[4])
+
+
+@production('fn_declaration : fn_signature native')
+def p_fn_declaration_native(yprod):
+    yprod[0] = FnDeclarationNative(
+        fname=yprod[1][0],
+        args=yprod[1][1],
+        rtype=yprod[1][2])
 
 
 @production('''fn_signature : fn name lbracket args rbracket arrow name''')

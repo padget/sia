@@ -5,7 +5,6 @@ from sia.steps.fn_table import save_fns_table
 from sia.steps.types_table import save_types_table
 
 if __name__ == '__main__':
-
     with open('main.sia', 'r') as file:
         inp = file.read()
 

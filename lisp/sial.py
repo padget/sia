@@ -109,101 +109,98 @@ parser = yacc.yacc(start='list')
 
 
 class SialContext:
-    def __init__(self, funcs):
-        self.funcs = funcs
+    def __init__(self, funcs={}, lets={}):
+        self.funcs: dict = funcs
+        self.lets: dict = lets
 
 
-class Signature:
-    def __init__(self, types, func):
-        self.types = types
-        self.func = func
+@dataclass(frozen=True)
+class Let(Expresssion):
+    name: str
+    value: Expresssion
 
 
-native_funcs = {
-    'add int int': lambda x, y: x + y,
-    'add str str': lambda x, y: x + y,
-    'add str int': lambda x, y: f'{x}{y}',
-    'add int str': lambda x, y: f'{x}{y}'
-}
+@dataclass(frozen=True)
+class Undefined(Expresssion):
+    value: str
 
 
-def build_funcs(lst: List = None):
-    funcs = native_funcs.copy()
-
-    return funcs
-
-
-def type_from(o):
-    return {
-        Number: 'int',
-        String: 'str'
-    }.get(type(o))
+def reduce_expression(expr: Expresssion, ctxt: SialContext):
+    if isinstance(expr, List):
+        return reduce_list(expr, ctxt)
+    elif isinstance(expr, Ident):
+        return reduce_ident(expr, ctxt)
+    else:
+        return reduce_native(expr)
 
 
-def is_function_in_sialcontext(ident: Ident, ctx: SialContext):
-    return ident.value in ctx.funcs
+def reduce_native(obj):
+    if isinstance(obj, Number):
+        return reduce_number(obj)
+    elif isinstance(obj, String):
+        return reduce_string(obj)
 
 
-def get_function_from_signature(ident: Ident, args, ctx: SialContext):
-    types = [type_from(arg) for arg in args]
-    Signature = signature = ' '.join([ident] + types)
+def reduce_list(lst: List, ctxt: SialContext):
+    if isinstance(lst.expressions[0], Ident):
+        tails = lst.expressions[1:]
+        results = [reduce_expression(tail, ctxt) for tail in tails]
+        v = reduce_ident(lst.expressions[0], ctxt)
+
+        if callable(v):
+            r = v(*results)
+            return r
+        elif isinstance(v, Let):
+            return v
+    else:
+        return List([reduce_expression(expr, ctxt) for expr in lst.expressions])
 
 
-def interpret_list(lst: List, ctx: SialContext):
-    first = lst[0]
-    tails = lst[1:]
+def reduce_ident(ident: Ident, ctxt: SialContext):
+    key = ident.value
 
-    # il faut d'abort intéprété tails avant de pouvoir intéprété first
-
-    if isinstance(first, Ident):
-        if is_function_in_sialcontext(first, ctx):
-            return interpret_fcall(first, tails, ctx)
-        else:
-            return interpret_ident(first, ctx)
-    elif isinstance(first, Number):
-        return interpret_number(first)
-    elif isinstance(first, String):
-        return interpret_string(first)
+    if key in ctxt.funcs:
+        return ctxt.funcs[key]
+    elif key in ctxt.lets:
+        return ctxt.lets[key]
+    else:
+        return Undefined(value=key)
 
 
-def interpret_fcall(ident: Ident, args, ctx: SialContext):
-    pass
-
-
-def interpret_ident(ident: Ident, ctx: SialContext):
-    pass
-
-
-def interpret_number(n: Number):
+def reduce_number(n: Number):
     return n
 
 
-def interpret_string(s: String):
+def reduce_string(s: String):
     return s
 
 
-def interpret(lst: List, ctx: SialContext):
-    if lst.expressions:
-        first = lst.expressions[0]
-
-        if isinstance(first, Ident):
-            ident = first.value
-            args = [ex for ex in lst.expressions[1:]]
-            signature = ' '.join([ident] + [type_from(arg) for arg in args])
-
-            if signature in ctx.funcs:
-                react: list = ctx.funcs[signature]
-                return react(*(arg.value for arg in args))
-            else:
-                print(
-                    f'pas de signature disponible correspondant à {signature}')
-
-
 if __name__ == '__main__':
-    simple_add = '(add 1 "2")'
+    native_funcs = {
+        'add': lambda x, y: Number(x.value + y.value),
+        'mult': lambda x, y: Number(x.value * y.value),
+        'div': lambda x, y: Number(x.value / y.value),
+        'minus': lambda x, y: Number(x.value - y.value),
+    }
 
-    ctx = SialContext(build_funcs(None))
-    result = parser.parse(input=simple_add, lexer=lexer)
+    ctxt = SialContext(funcs=native_funcs)
 
-    sum = interpret(result, ctx)
+
+    def define_let(ident, expr):
+        if isinstance(ident, Undefined):
+            ctxt.lets[ident.value] = expr
+            return Let(name=Ident(value=ident.value), value=expr)
+        else:
+            print(f'nom déja utilisé')
+
+    ctxt.funcs['let'] = define_let
+
+    letinp = '''(
+    (let name (add 12 45)) 
+    (let name 14) 
+    (add 12 name))'''
+
+    result = parser.parse(input=letinp, lexer=lexer)
+    print(result)
+    sum = reduce_expression(result, ctxt)
     print(sum)

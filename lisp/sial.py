@@ -143,17 +143,49 @@ def reduce_native(obj):
 
 def reduce_list(lst: List, ctxt: SialContext):
     if isinstance(lst.expressions[0], Ident):
-        tails = lst.expressions[1:]
-        results = [reduce_expression(tail, ctxt) for tail in tails]
-        v = reduce_ident(lst.expressions[0], ctxt)
+        if lst.expressions[0].value == 'fn':
+            return reduce_fn(lst, ctxt)
+        else:
+            tails = lst.expressions[1:]
+            results = [reduce_expression(tail, ctxt) for tail in tails]
+            v = reduce_ident(lst.expressions[0], ctxt)
 
-        if callable(v):
-            r = v(*results)
-            return r
-        elif isinstance(v, Let):
-            return v
+            if callable(v):
+                r = v(*results)
+                return r
+            elif isinstance(v, Let):
+                return v
     else:
         return List([reduce_expression(expr, ctxt) for expr in lst.expressions])
+
+
+@dataclass(frozen=True)
+class Fn(Expresssion):
+    name: str
+    args: List
+    expr: Expresssion
+    ctxt: SialContext
+
+    def __call__(self, *args):
+        for i, arg in enumerate(args):
+            self.ctxt.lets[self.args.expressions[i].value] = reduce_expression(arg, self.ctxt)
+
+        res = reduce_expression(self.expr, self.ctxt)
+
+        for arg in self.args.expressions:
+            del self.ctxt.lets[arg.value]
+
+        return res
+
+
+def reduce_fn(lst: List, ctxt):
+    name = lst.expressions[1]
+    args = lst.expressions[2]
+    expr = lst.expressions[3]
+
+    func = Fn(name, args, expr, ctxt)
+    ctxt.funcs[name.value] = func
+    return func
 
 
 def reduce_ident(ident: Ident, ctxt: SialContext):
@@ -193,12 +225,14 @@ if __name__ == '__main__':
         else:
             print(f'nom déja utilisé')
 
+
     ctxt.funcs['let'] = define_let
 
     letinp = '''(
-    (let name (add 12 45)) 
-    (let name 14) 
-    (add 12 name))'''
+        (fn add2 (a b) 
+            (add a (add a b))
+        (add2 1 2)
+    )'''
 
     result = parser.parse(input=letinp, lexer=lexer)
     print(result)

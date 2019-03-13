@@ -114,10 +114,12 @@ class SialContext:
         self.lets: dict = lets
 
 
-@dataclass(frozen=True)
-class Let(Expresssion):
-    name: str
-    value: Expresssion
+def sialfn(name: str, sctx: SialContext):
+    def decorator(f):
+        sctx.funcs[name] = f
+        return f
+
+    return decorator
 
 
 @dataclass(frozen=True)
@@ -125,67 +127,18 @@ class Undefined(Expresssion):
     value: str
 
 
-def reduce_expression(expr: Expresssion, ctxt: SialContext):
-    if isinstance(expr, List):
-        return reduce_list(expr, ctxt)
-    elif isinstance(expr, Ident):
-        return reduce_ident(expr, ctxt)
+def reduce_expression(expr: Expresssion, ctxt: SialContext, wait_value=False):
+    r = {
+        List: lambda e: reduce_list(e, ctxt),
+        Ident: lambda e: reduce_ident(e, ctxt),
+        Number: lambda e: reduce_native(e),
+        String: lambda e: reduce_native(e)
+    }[type(expr)](expr)
+
+    if wait_value and not isinstance(r, (Number, String)):
+        return reduce_expression(r, ctxt)
     else:
-        return reduce_native(expr)
-
-
-def reduce_native(obj):
-    if isinstance(obj, Number):
-        return reduce_number(obj)
-    elif isinstance(obj, String):
-        return reduce_string(obj)
-
-
-def reduce_list(lst: List, ctxt: SialContext):
-    if isinstance(lst.expressions[0], Ident):
-        if lst.expressions[0].value == 'fn':
-            return reduce_fn(lst, ctxt)
-        else:
-            tails = lst.expressions[1:]
-            results = [reduce_expression(tail, ctxt) for tail in tails]
-            v = reduce_ident(lst.expressions[0], ctxt)
-
-            if callable(v):
-                r = v(*results)
-                return r
-            elif isinstance(v, Let):
-                return v
-    else:
-        return List([reduce_expression(expr, ctxt) for expr in lst.expressions])
-
-
-@dataclass(frozen=True)
-class Fn(Expresssion):
-    name: str
-    args: List
-    expr: Expresssion
-    ctxt: SialContext
-
-    def __call__(self, *args):
-        for i, arg in enumerate(args):
-            self.ctxt.lets[self.args.expressions[i].value] = reduce_expression(arg, self.ctxt)
-
-        res = reduce_expression(self.expr, self.ctxt)
-
-        for arg in self.args.expressions:
-            del self.ctxt.lets[arg.value]
-
-        return res
-
-
-def reduce_fn(lst: List, ctxt):
-    name = lst.expressions[1]
-    args = lst.expressions[2]
-    expr = lst.expressions[3]
-
-    func = Fn(name, args, expr, ctxt)
-    ctxt.funcs[name.value] = func
-    return func
+        return r
 
 
 def reduce_ident(ident: Ident, ctxt: SialContext):
@@ -199,42 +152,72 @@ def reduce_ident(ident: Ident, ctxt: SialContext):
         return Undefined(value=key)
 
 
-def reduce_number(n: Number):
-    return n
+def reduce_native(obj):
+    if isinstance(obj, Number):
+        return obj
+    elif isinstance(obj, String):
+        return obj
 
 
-def reduce_string(s: String):
-    return s
+def reduce_list(lst: List, ctxt: SialContext):
+    if isinstance(lst.expressions[0], Ident):
+        identv = reduce_ident(lst.expressions[0], ctxt)
+
+        if callable(identv):
+            r = identv(*lst.expressions[1:])
+            return r
+    else:
+        return List([reduce_expression(expr, ctxt) for expr in lst.expressions])
+
+
+sctx = SialContext()
+
+
+@sialfn('add', sctx)
+def add(x: int, y: int):
+    return Number(reduce_expression(x, sctx, True).value +
+                  reduce_expression(y, sctx, True).value)
+
+
+@sialfn('minus', sctx)
+def add(x: int, y: int):
+    return Number(reduce_expression(x, sctx, True).value -
+                  reduce_expression(y, sctx, True).value)
+
+
+@sialfn('mult', sctx)
+def add(x: int, y: int):
+    print("")
+    return Number(reduce_expression(x, sctx, True).value *
+                  reduce_expression(y, sctx, True).value)
+
+
+@sialfn('div', sctx)
+def add(x: int, y: int):
+    return Number(reduce_expression(x, sctx, True).value /
+                  reduce_expression(y, sctx, True).value)
+
+
+@sialfn('let', sctx)
+def define_let(ident, expr):
+    found = reduce_ident(ident, sctx)
+    if isinstance(found, Undefined):
+        print('inside let ', expr)
+        sctx.lets[found.value] = expr
+    else:
+        print(f'nom déja utilisé')
 
 
 if __name__ == '__main__':
-    native_funcs = {
-        'add': lambda x, y: Number(x.value + y.value),
-        'mult': lambda x, y: Number(x.value * y.value),
-        'div': lambda x, y: Number(x.value / y.value),
-        'minus': lambda x, y: Number(x.value - y.value),
-    }
-
-    ctxt = SialContext(funcs=native_funcs)
-
-
-    def define_let(ident, expr):
-        if isinstance(ident, Undefined):
-            ctxt.lets[ident.value] = expr
-            return Let(name=Ident(value=ident.value), value=expr)
-        else:
-            print(f'nom déja utilisé')
-
-
-    ctxt.funcs['let'] = define_let
-
-    letinp = '''(
-        (fn add2 (a b) 
-            (add a (add a b))
-        (add2 1 2)
-    )'''
+    letinp = '''
+    (
+        (let left 12)  
+        (let square (mult left left))
+        (add square 2)
+    )
+    '''
 
     result = parser.parse(input=letinp, lexer=lexer)
     print(result)
-    sum = reduce_expression(result, ctxt)
+    sum = reduce_expression(result, sctx)
     print(sum)

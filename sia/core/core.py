@@ -6,10 +6,12 @@ def production(rule: str):
     return decorate
 
 
-def token(rx: str):
-    def decorate(ftoken):
-        ftoken.__doc__ = rx
-        return ftoken
+def token(rx: str, tokens: list = None):
+    def decorate(t_token):
+        if tokens is not None:
+            tokens.append(t_token.__name__[2:])
+        t_token.__doc__ = rx
+        return t_token
 
     return decorate
 

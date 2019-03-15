@@ -59,3 +59,8 @@ class Number(Expression):
 @immutable
 class String(Expression):
     value: str
+
+
+@immutable
+class Ident(Expression):
+    value: str

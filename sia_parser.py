@@ -1,9 +1,9 @@
+from ply import lex, yacc
 from ply.lex import Token
 
 from sia.core.core import token, production
-from ply import lex, yacc
-
-from sia_ast import TypeDeclaration, FnDeclaration, LetDeclaration, FnCall
+from sia_ast import TypeDeclaration, FnDeclaration, LetDeclaration, FnCall, Sia, \
+    Number, String, Ident, Argument
 
 ################
 # TOKENS LEXER #
@@ -80,7 +80,7 @@ def p_sia(p):
     p[0] = p[1]
 
 
-@production('''declarations : declaration declarations 
+@production('''declarations : declaration declarations
                             | empty''')
 def p_declarations(p):
     if len(p) == 3:
@@ -143,7 +143,7 @@ def p_arguments(p):
 
 @production('argument : ident')
 def p_argument(p):
-    p[0] = p[1]
+    p[0] = Argument(p[1])
 
 
 @production('''let_declarations : let_declaration let_declarations
@@ -162,12 +162,24 @@ def p_let_declaration(p):
         expression=p[3])
 
 
-@production('''expression : number
-                          | string
-                          | ident
-                          | fn_call''')
-def p_expression(p):
-    p[0] = p[1]  # TODO différencier les expressions avec les objets ast correspondant
+@production('expression : number')
+def p_production_number(p):
+    p[0] = Number(p[1])
+
+
+@production('expression : string')
+def p_production_string(p):
+    p[0] = String(p[1])
+
+
+@production('expression : ident')
+def p_production_ident(p):
+    p[0] = Ident(p[1])
+
+
+@production('expression : fn_call')
+def p_production_fn_call(p):
+    p[0] = p[1]
 
 
 @production('fn_call : ident lbracket expressions rbracket')
@@ -188,12 +200,22 @@ def p_expressions(p):
 
 parser = yacc.yacc(start='sia')
 
+
 if __name__ == '__main__':
     inp = '''
+    type tuple(a b c d)
+    type person(name firstname age)
+    
+    fn pair(p1 p2) (
+        let p p1
+        let p3 p2
+        add(p1 p3)
+    )
+    
     fn add2 (a b) (
         let c 12
         add(a b c)
     )
     '''
-    print(parser.parse(lexer=lexer, input=inp))
-    pass
+    sia: Sia = parser.parse(lexer=lexer, input=inp)
+    print(sia)
